@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using TutoringQuiz.Domain.Attempts;
 using TutoringQuiz.Domain.ClassRooms;
 using TutoringQuiz.Domain.Quizzes;
@@ -16,6 +17,9 @@ public interface IAppDbContext
     DbSet<User> Users { get; }
     DbSet<Quiz> Quizzes { get; }
     DbSet<QuizAttempt> QuizAttempts { get; }
+
+    /// <summary>Used to drop stale tracked state before re-running a use case that lost a concurrency race.</summary>
+    ChangeTracker ChangeTracker { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
