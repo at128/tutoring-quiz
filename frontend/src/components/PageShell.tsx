@@ -1,33 +1,46 @@
 import { useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router'
 import { useAuth } from '../auth/useAuth'
-import { Auto } from './Auto'
 import { Banner } from './Banner'
-import { IconButton } from './Button'
-import { Icon } from './Icon'
+import { Icon, Logo } from './Icon'
 
 type Width = 'student' | 'teacher'
 const widths: Record<Width, string> = { student: 'max-w-[640px]', teacher: 'max-w-[1200px]' }
 
 export type BackTarget = { to: string; label: string }
 
-/** Desk background, app bar, and a centred column (640 for students, 1200 for teachers). */
-export function PageShell({ width = 'student', back, children }: { width?: Width; back?: BackTarget; children: ReactNode }) {
-  return (
-    <div className="min-h-dvh bg-desk">
-      <AppBar width={width} back={back} />
-      <main className={`mx-auto w-full ${widths[width]} px-4 pt-5 pb-[calc(2.5rem+env(safe-area-inset-bottom))] md:px-10`}>
-        {children}
-      </main>
-    </div>
-  )
+type PageShellProps = {
+  width?: Width
+  back?: BackTarget
+  /** Pinned action bar (e.g. "Start quiz"); the content scrolls above it. */
+  footer?: ReactNode
+  /** Spacing of the content column (differs per screen in the design). */
+  mainClassName?: string
+  children: ReactNode
 }
 
-export function Mark() {
+/** App bar, a centred column (640 for students, 1200 for teachers) on the desk background, optional footer. */
+export function PageShell({ width = 'student', back, footer, mainClassName = 'gap-4 pt-4 pb-8', children }: PageShellProps) {
+  const column = `mx-auto flex w-full flex-col px-4 ${widths[width]}`
+
+  if (!footer)
+    return (
+      <div className="min-h-dvh bg-desk">
+        <AppBar width={width} back={back} />
+        <main className={`${column} ${mainClassName} pb-[max(2rem,env(safe-area-inset-bottom))]`}>{children}</main>
+      </div>
+    )
+
   return (
-    <span aria-hidden className="inline-flex size-7 items-center justify-center rounded-full border-2 border-ink">
-      <span className="size-3.5 rounded-full bg-ink" />
-    </span>
+    <div className="flex h-dvh flex-col bg-desk">
+      <AppBar width={width} back={back} />
+      <main className="min-h-0 flex-1 overflow-y-auto">
+        <div className={`${column} ${mainClassName}`}>{children}</div>
+      </main>
+      <footer className="flex-none border-t border-rule bg-paper pb-[calc(12px+env(safe-area-inset-bottom))]">
+        <div className={`${column} pt-3`}>{footer}</div>
+      </footer>
+    </div>
   )
 }
 
@@ -49,50 +62,62 @@ function AppBar({ width, back }: { width: Width; back?: BackTarget }) {
   }
 
   return (
-    <header className="border-b border-rule bg-paper pt-[env(safe-area-inset-top)]">
-      <div className={`mx-auto flex min-h-14 w-full ${widths[width]} items-center gap-3 px-4 md:px-10`}>
-        {back ? (
-          <Link to={back.to} className="-ms-2 inline-flex min-h-11 items-center gap-1 rounded-control pe-2 font-semibold text-ink hover:bg-tint">
-            <Icon name="chevronLeft" />
-            {back.label}
-          </Link>
-        ) : (
-          <Link to="/" className="inline-flex min-h-11 items-center gap-2 font-bold text-ink">
-            <Mark />
-            <span>Weekly Quizzes</span>
-          </Link>
-        )}
-
-        {user?.role === 'Teacher' && !back && (
-          <nav className="ms-4 hidden sm:block">
-            <NavLink
-              to="/teacher"
-              end
-              className={({ isActive }) =>
-                `inline-flex min-h-11 items-center rounded-control px-3 font-semibold ${isActive ? 'bg-tint text-ink' : 'text-ink-2 hover:bg-tint'}`
-              }
+    <header className="flex-none border-b border-rule bg-paper pt-[env(safe-area-inset-top)]">
+      <div className={`mx-auto flex h-[60px] w-full items-center justify-between gap-2 ps-4 pe-1.5 ${widths[width]}`}>
+        <div className="flex min-w-0 items-center gap-4">
+          {back ? (
+            <Link
+              to={back.to}
+              className="-ms-1.5 inline-flex min-h-11 items-center gap-1 rounded-control ps-1 pe-2 text-[15px] font-semibold text-ink hover:bg-tint"
             >
-              My quizzes
-            </NavLink>
-          </nav>
-        )}
+              <Icon name="chevronLeft" className="size-[18px]" />
+              {back.label}
+            </Link>
+          ) : (
+            <Link to="/" className="inline-flex items-center gap-2.5 text-body font-bold text-ink">
+              <Logo />
+              Weekly Quizzes
+            </Link>
+          )}
+          {user?.role === 'Teacher' && !back && (
+            <nav className="hidden sm:block">
+              <NavLink
+                to="/teacher"
+                end
+                className={({ isActive }) =>
+                  `inline-flex min-h-11 items-center rounded-control px-3 text-small font-semibold ${isActive ? 'bg-tint text-ink' : 'text-ink-2 hover:bg-tint'}`
+                }
+              >
+                My quizzes
+              </NavLink>
+            </nav>
+          )}
+        </div>
 
         {user && (
-          <div className="ms-auto flex min-w-0 items-center gap-1">
-            <div className="min-w-0 text-end leading-tight">
-              <Auto className="block truncate text-small font-semibold">{user.fullName}</Auto>
-              <span className="block truncate font-mono text-meta text-muted">
-                {user.classRoom ? `${user.classRoom.name} · ${user.username}` : user.username}
+          <div className="flex min-w-0 items-center gap-0.5">
+            <div className="flex min-w-0 flex-col items-end">
+              <span dir="auto" className="max-w-[130px] truncate text-meta font-semibold text-ink sm:max-w-[240px]">
+                {user.fullName}
               </span>
+              <span className="text-[12px] text-muted">{user.classRoom ? `Class ${user.classRoom.name}` : 'Teacher'}</span>
             </div>
-            <IconButton label="Sign out" onClick={() => void handleSignOut()} disabled={signingOut} aria-busy={signingOut}>
+            <button
+              type="button"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={() => void handleSignOut()}
+              disabled={signingOut}
+              aria-busy={signingOut || undefined}
+              className="inline-flex size-11 flex-none items-center justify-center rounded-control text-ink-2 hover:bg-tint disabled:opacity-60"
+            >
               <Icon name="logout" />
-            </IconButton>
+            </button>
           </div>
         )}
       </div>
       {signOutError && (
-        <div className={`mx-auto w-full ${widths[width]} px-4 pb-3 md:px-10`}>
+        <div className={`mx-auto w-full px-4 pb-3 ${widths[width]}`}>
           <Banner kind="error">Sign out didn't work. You're still signed in. Check your connection and tap Sign out again.</Banner>
         </div>
       )}

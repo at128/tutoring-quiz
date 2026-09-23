@@ -15,7 +15,7 @@ export type BadgeKind =
   | 'Locked'
   | 'NotStarted'
 
-// Mapping from docs/DESIGN_HANDOFF_FINAL.md: always icon + word, never colour alone.
+// Mapping from docs/DESIGN_HANDOFF_FINAL.md and the prototype: always icon + word, never colour alone.
 const styles: Record<BadgeKind, { icon: IconName; label: string; className: string }> = {
   InProgress: { icon: 'halfCircle', label: 'In progress', className: 'bg-tint border-strong text-ink' },
   Available: { icon: 'dot', label: 'Available', className: 'bg-green-bg border-green-line text-green' },
@@ -36,10 +36,10 @@ export function Badge({ kind, className = '' }: { kind: BadgeKind; className?: s
   const style = styles[kind]
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-meta font-semibold whitespace-nowrap ${style.className} ${className}`}
+      className={`inline-flex h-[26px] items-center gap-1.5 rounded-full border px-2.5 text-meta leading-none font-semibold whitespace-nowrap ${style.className} ${className}`}
     >
-      <Icon name={style.icon} className="size-3.5" />
-      {style.label}
+      <Icon name={style.icon} className="size-3.5" strokeWidth={2} />
+      <span>{style.label}</span>
     </span>
   )
 }

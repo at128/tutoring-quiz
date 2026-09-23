@@ -1,76 +1,151 @@
+import type { ReactNode } from 'react'
 import type { StudentQuizCard } from '../../../api/types'
-import { Auto, Num } from '../../../components/Auto'
+import { Num } from '../../../components/Auto'
 import { Badge } from '../../../components/Badge'
 import { ButtonLink } from '../../../components/Button'
-import { Icon } from '../../../components/Icon'
-import { Sheet } from '../../../components/Sheet'
-import { formatScore } from '../../../lib/format'
-import { cardAction, isShortOnTime, shortTimeMessage, timeHint } from '../studentQuizCopy'
+import { Icon, type IconName } from '../../../components/Icon'
+import { formatPercent, formatScore } from '../../../lib/format'
+import { formatDateTime, formatRelative, formatShortDate, formatTime, remainingMs } from '../../../lib/time'
+import { Timer } from '../takeQuiz/QuizHeader'
+import { displayPercentage, isShortOnTime, markingLine } from '../studentQuizCopy'
 
-export function QuizCard({ quiz, nowMs }: { quiz: StudentQuizCard; nowMs: number }) {
-  const action = cardAction(quiz)
-  const score = quiz.status === 'Completed' ? quiz.attempt?.score : null
+/** A quiz on the student's list (prototype: "Your quizzes"). */
+export function QuizCard({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: number; offsetMs: number }) {
+  const inProgress = quiz.status === 'InProgress'
 
   return (
-    <Sheet as="article" className="p-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <article
+      className={`flex flex-col gap-3 rounded-sheet bg-paper ${inProgress ? 'border-2 border-ink p-[15px]' : 'border border-rule p-4'}`}
+    >
+      <div className="flex items-center justify-between gap-2">
         <Badge kind={quiz.status} />
-        <Auto className="min-w-0 truncate text-small text-ink-2">{quiz.teacherName}</Auto>
+        <span dir="auto" className="min-w-0 truncate text-meta text-muted">
+          {quiz.teacherName}
+        </span>
       </div>
 
-      <Auto as="h3" className="mt-2 block text-card font-bold">
+      <h3 dir="auto" className="auto-text text-card leading-[1.45] font-bold">
         {quiz.title}
-      </Auto>
+      </h3>
 
-      {isShortOnTime(quiz) && (
-        <p className="mt-3 flex items-start gap-2 rounded-option border border-amber-line bg-amber-bg px-3 py-2 text-small text-amber-ink">
-          <Icon name="clock" className="mt-0.5 size-4" />
-          {shortTimeMessage(quiz)}
-        </p>
-      )}
+      <FactsRow quiz={quiz} inset={inProgress ? 15 : 16} />
 
-      <dl className="mt-3 grid grid-cols-3 divide-x divide-rule-soft rounded-option border border-rule-soft text-center">
-        <Fact label="Questions" value={quiz.questionCount} />
-        <Fact label="Minutes" value={quiz.durationMinutes} />
-        <Fact label="Max score" value={quiz.maxScore} />
-      </dl>
+      <InfoLine icon="info">{markingLine(quiz.wrongAnswerPenaltyPercent)}</InfoLine>
 
-      <p className="mt-3 text-small text-ink-2">
-        {quiz.wrongAnswerPenaltyPercent > 0
-          ? `Negative marking: −${quiz.wrongAnswerPenaltyPercent} % of a question's points for a wrong answer`
-          : 'No negative marking'}
-      </p>
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-rule-soft pt-3">
-        <p className="min-w-0 flex-1 text-small text-ink">
-          {score !== null && score !== undefined && quiz.attempt ? (
-            <span className="me-2 font-semibold">
-              Score{' '}
-              <Num className={score < 0 ? 'text-red' : ''}>
-                {formatScore(score)} / {quiz.attempt.maxScore}
-              </Num>
-              {' · '}
-            </span>
-          ) : null}
-          {timeHint(quiz, nowMs)}
-        </p>
-        {action && (
-          <ButtonLink to={action.to} variant={action.variant} className="w-full sm:w-auto">
-            {action.label}
-          </ButtonLink>
-        )}
-      </div>
-    </Sheet>
+      <StatusDetails quiz={quiz} nowMs={nowMs} offsetMs={offsetMs} />
+    </article>
   )
 }
 
-function Fact({ label, value }: { label: string; value: number }) {
+/** Questions · points · time limit, ruled edge to edge across the card. */
+export function FactsRow({ quiz, inset }: { quiz: StudentQuizCard; inset: 15 | 16 }) {
+  const cells = [
+    { value: `${quiz.questionCount}`, label: 'questions' },
+    { value: `${quiz.maxScore}`, label: 'points' },
+    { value: `${quiz.durationMinutes} min`, label: 'time limit' },
+  ]
   return (
-    <div className="px-2 py-2">
-      <dt className="text-meta text-muted">{label}</dt>
-      <dd className="text-body font-semibold">
-        <Num>{value}</Num>
-      </dd>
+    <div className={`flex border-y border-rule-soft ${inset === 15 ? '-mx-[15px]' : '-mx-4'}`}>
+      {cells.map((cell, index) => (
+        <div key={cell.label} className={`flex min-w-0 flex-1 flex-col gap-0.5 px-2.5 py-2 ${index > 0 ? 'border-s border-rule-soft' : ''}`}>
+          <span className="text-body font-semibold">
+            <Num>{cell.value}</Num>
+          </span>
+          <span className="text-[12px] text-muted">{cell.label}</span>
+        </div>
+      ))}
     </div>
   )
+}
+
+function InfoLine({ icon, children, tone = 'text-ink-2', align = 'center' }: { icon: IconName; children: ReactNode; tone?: string; align?: 'center' | 'start' }) {
+  return (
+    <div className={`flex gap-1.5 text-small leading-[1.45] ${tone} ${align === 'center' ? 'items-center' : 'items-start'}`}>
+      <span className={align === 'start' ? 'pt-px' : ''}>
+        <Icon name={icon} className="size-4" />
+      </span>
+      <span>{children}</span>
+    </div>
+  )
+}
+
+function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: number; offsetMs: number }) {
+  switch (quiz.status) {
+    case 'InProgress':
+      if (!quiz.attempt) return null
+      return (
+        <>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Timer remainingMs={remainingMs(quiz.attempt.deadline, offsetMs)} />
+            <span className="text-small text-ink-2">
+              left · ends at <Num>{formatTime(quiz.attempt.deadline)}</Num>
+            </span>
+          </div>
+          <ButtonLink to={`/student/attempts/${quiz.attempt.id}`} size="lg" className="w-full">
+            Resume quiz
+            <Icon name="chevronRight" className="size-[18px]" />
+          </ButtonLink>
+        </>
+      )
+
+    case 'Available':
+      return (
+        <>
+          {isShortOnTime(quiz) && (
+            <InfoLine icon="alert" tone="text-amber-ink font-semibold" align="start">
+              You’ll have only <Num>{quiz.effectiveMinutesIfStartedNow}</Num> minutes — the quiz closes at{' '}
+              <Num>{formatTime(quiz.closesAt)}</Num>.
+            </InfoLine>
+          )}
+          <InfoLine icon="calendar" align="start">
+            Closes {formatDateTime(quiz.closesAt)} · {formatRelative(quiz.closesAt, nowMs)}
+          </InfoLine>
+          <ButtonLink to={`/student/quizzes/${quiz.id}`} variant="secondary" size="lg" className="w-full">
+            View quiz
+          </ButtonLink>
+        </>
+      )
+
+    case 'Upcoming':
+      return (
+        <InfoLine icon="clock" align="start">
+          Opens {formatDateTime(quiz.opensAt)} · {formatRelative(quiz.opensAt, nowMs)}
+        </InfoLine>
+      )
+
+    case 'Completed': {
+      const attempt = quiz.attempt
+      if (!attempt) return null
+      const score = attempt.score ?? 0
+      return (
+        <>
+          <div className="flex items-baseline justify-between rounded-option bg-desk px-3 py-2.5">
+            <span className="text-small text-ink-2">Your score</span>
+            <span className={`text-card font-bold ${score < 0 ? 'text-red' : ''}`}>
+              <Num>
+                {formatScore(score)} / {attempt.maxScore}
+              </Num>
+              <span className="text-small font-medium text-muted">
+                {' · '}
+                <Num>{formatPercent(displayPercentage(score, attempt.maxScore))}</Num>
+              </span>
+            </span>
+          </div>
+          <InfoLine icon={attempt.status === 'Expired' ? 'hourglass' : 'check'} align="start">
+            {attempt.status === 'Expired' ? 'Time ran out' : 'Submitted'} {formatShortDate(attempt.deadline)}
+          </InfoLine>
+          <ButtonLink to={`/student/attempts/${attempt.id}/result`} variant="secondary" size="lg" className="w-full">
+            View result
+          </ButtonLink>
+        </>
+      )
+    }
+
+    case 'Missed':
+      return (
+        <InfoLine icon="minusCircle" tone="text-muted" align="start">
+          Closed {formatDateTime(quiz.closesAt)}. You didn’t start this quiz.
+        </InfoLine>
+      )
+  }
 }
