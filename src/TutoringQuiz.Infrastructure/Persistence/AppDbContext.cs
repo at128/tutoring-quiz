@@ -35,6 +35,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         }
     }
 
+    public async Task<T> InWriteTransactionAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct)
+    {
+        await using var transaction = await Database.BeginTransactionAsync(ct);
+        var result = await action(ct);
+        await transaction.CommitAsync(ct);
+        return result;
+    }
+
+    public async Task InWriteTransactionAsync(Func<CancellationToken, Task> action, CancellationToken ct)
+    {
+        await using var transaction = await Database.BeginTransactionAsync(ct);
+        await action(ct);
+        await transaction.CommitAsync(ct);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 

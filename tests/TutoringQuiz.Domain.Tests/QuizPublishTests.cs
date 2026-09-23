@@ -56,4 +56,33 @@ public sealed class QuizPublishTests
         Assert.Equal(ErrorCodes.QuizLocked, error.Code);
         Assert.Equal(1, quiz.MaxScore);
     }
+
+    [Fact]
+    public void UpdatePublished_WithoutQuestions_IsRejectedWithoutChangingContent()
+    {
+        var quiz = TestQuizzes.Published(0, 1);
+        var originalQuestionId = quiz.Questions.Single().Id;
+
+        var error = Assert.Throws<DomainException>(() =>
+            quiz.Update(TestQuizzes.Details(), [Guid.NewGuid()], [], hasAttempts: false, Now));
+
+        Assert.Equal(ErrorCodes.QuizInvalidForPublish, error.Code);
+        Assert.Contains("questions", error.Errors!.Keys);
+        Assert.True(quiz.IsPublished);
+        Assert.Equal(originalQuestionId, quiz.Questions.Single().Id);
+    }
+
+    [Fact]
+    public void UpdateClosedPublished_WithoutAttempts_CanChangeContent()
+    {
+        var quiz = TestQuizzes.Published(0, 1);
+        var afterClose = TestQuizzes.Closes.AddMinutes(1);
+
+        quiz.Update(TestQuizzes.Details(), [Guid.NewGuid()], [TestQuizzes.Question(2)],
+            hasAttempts: false, afterClose);
+
+        Assert.True(quiz.IsPublished);
+        Assert.Equal(TestQuizzes.Closes, quiz.ClosesAtUtc);
+        Assert.Equal(2, quiz.MaxScore);
+    }
 }

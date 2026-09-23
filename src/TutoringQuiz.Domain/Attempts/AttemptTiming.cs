@@ -5,8 +5,9 @@ public static class AttemptTiming
     /// <summary>DeadlineUtc = min(start + duration, quiz close).</summary>
     public static DateTime Deadline(DateTime startedAtUtc, int durationMinutes, DateTime closesAtUtc)
     {
-        var byDuration = startedAtUtc.AddMinutes(durationMinutes);
-        return byDuration < closesAtUtc ? byDuration : closesAtUtc;
+        // Compare before adding so an extreme valid close date near DateTime.MaxValue cannot overflow.
+        var duration = TimeSpan.FromMinutes(durationMinutes);
+        return closesAtUtc - startedAtUtc <= duration ? closesAtUtc : startedAtUtc.Add(duration);
     }
 
     /// <summary>No grace after the deadline: an answer counts only when saved at or before it.</summary>

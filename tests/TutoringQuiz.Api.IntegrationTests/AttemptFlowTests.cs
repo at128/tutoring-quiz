@@ -4,6 +4,8 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TutoringQuiz.Api.IntegrationTests.Infrastructure;
+using TutoringQuiz.Domain.Attempts;
+using TutoringQuiz.Domain.Quizzes;
 using TutoringQuiz.Infrastructure.Persistence;
 
 namespace TutoringQuiz.Api.IntegrationTests;
@@ -29,6 +31,26 @@ public sealed class AttemptFlowTests(TestAppFactory factory) : IClassFixture<Tes
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Equal(1, await db.QuizAttempts.CountAsync(a => a.QuizId == data.Quiz.Id && a.StudentId == data.Student.Id));
+    }
+
+    [Fact]
+    public async Task Start_AfterAnAttemptExpires_PersistsExpiryBeforeReturningAlreadyTaken()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var client = await TestData.LoginAsync(factory, data.Student);
+        using var started = await StartAsync(client, data.Quiz.Id);
+        var attemptId = (await JsonAsync(started)).GetProperty("id").GetGuid();
+
+        factory.Clock.Advance(TimeSpan.FromMinutes(20) + TimeSpan.FromTicks(1));
+        using var again = await StartAsync(client, data.Quiz.Id);
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.Equal("attempt.already_taken", (await JsonAsync(again)).GetProperty("code").GetString());
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var persisted = await db.QuizAttempts.SingleAsync(a => a.Id == attemptId);
+        Assert.Equal(TutoringQuiz.Domain.Attempts.AttemptStatus.Expired, persisted.Status);
+        Assert.Equal(0m, persisted.Score);
     }
 
     [Fact] // I2
@@ -329,6 +351,245 @@ public sealed class AttemptFlowTests(TestAppFactory factory) : IClassFixture<Tes
         var answer = (await db.QuizAttempts.Include(a => a.Answers)
             .SingleAsync(a => a.Id == attemptId)).Answers.Single();
         Assert.Null(answer.SelectedOptionId);
+    }
+
+    [Fact]
+    public async Task OtherStudent_CannotReadSubmitOrFetchResultOfAnAttempt()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var owner = await TestData.LoginAsync(factory, data.Student);
+        using var outsider = await TestData.LoginAsync(factory, data.SecondStudent);
+        using var started = await StartAsync(owner, data.Quiz.Id);
+        var id = (await JsonAsync(started)).GetProperty("id").GetGuid();
+        var path = $"/api/student/attempts/{id}";
+
+        using var read = await outsider.GetAsync(path);
+        using var submit = await outsider.PostAsync(path + "/submit", null);
+        using var result = await outsider.GetAsync(path + "/result");
+        foreach (var response in new[] { read, submit, result })
+        {
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Equal("not_found", (await JsonAsync(response)).GetProperty("code").GetString());
+        }
+        using var ownerRead = await owner.GetAsync(path);
+        Assert.Equal("InProgress", (await JsonAsync(ownerRead)).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task TwoConcurrentSaves_ToDifferentQuestionsBothPersist()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var firstTab = await TestData.LoginAsync(factory, data.Student);
+        using var secondTab = await TestData.LoginAsync(factory, data.Student);
+        using var started = await StartAsync(firstTab, data.Quiz.Id);
+        var id = (await JsonAsync(started)).GetProperty("id").GetGuid();
+        var first = data.Quiz.Questions[0];
+        var second = data.Quiz.Questions[1];
+
+        var responses = await Task.WhenAll(
+            firstTab.PutAsJsonAsync($"/api/student/attempts/{id}/answers/{first.Id}",
+                new { selectedOptionId = first.Options[0].Id }),
+            secondTab.PutAsJsonAsync($"/api/student/attempts/{id}/answers/{second.Id}",
+                new { selectedOptionId = second.Options[0].Id }));
+        using var firstResponse = responses[0];
+        using var secondResponse = responses[1];
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = (await db.QuizAttempts.Include(a => a.Answers).SingleAsync(a => a.Id == id)).Answers;
+        Assert.Equal(2, saved.Count);
+        Assert.Contains(saved, answer => answer.QuestionId == first.Id && answer.SelectedOptionId == first.Options[0].Id);
+        Assert.Contains(saved, answer => answer.QuestionId == second.Id && answer.SelectedOptionId == second.Options[0].Id);
+    }
+
+    [Fact]
+    public async Task AnswerRacingSubmit_NeverChangesTheFinalScoreAfterward()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var answerTab = await TestData.LoginAsync(factory, data.Student);
+        using var submitTab = await TestData.LoginAsync(factory, data.Student);
+        using var started = await StartAsync(answerTab, data.Quiz.Id);
+        var id = (await JsonAsync(started)).GetProperty("id").GetGuid();
+        var question = data.Quiz.Questions[0];
+
+        var responses = await Task.WhenAll(
+            answerTab.PutAsJsonAsync($"/api/student/attempts/{id}/answers/{question.Id}",
+                new { selectedOptionId = question.Options[0].Id }),
+            submitTab.PostAsync($"/api/student/attempts/{id}/submit", null));
+        using var answer = responses[0];
+        using var submit = responses[1];
+        Assert.Contains(answer.StatusCode, new[] { HttpStatusCode.OK, HttpStatusCode.Conflict });
+        Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+        var score = (await JsonAsync(submit)).GetProperty("score").GetDecimal();
+        Assert.Equal(answer.StatusCode == HttpStatusCode.OK ? 4m : 0m, score);
+
+        using var repeat = await submitTab.PostAsync($"/api/student/attempts/{id}/submit", null);
+        Assert.Equal(score, (await JsonAsync(repeat)).GetProperty("score").GetDecimal());
+        using var lateSave = await answerTab.PutAsJsonAsync($"/api/student/attempts/{id}/answers/{question.Id}",
+            new { selectedOptionId = question.Options[1].Id });
+        Assert.Equal(HttpStatusCode.Conflict, lateSave.StatusCode);
+        Assert.Equal("attempt.not_in_progress", (await JsonAsync(lateSave)).GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task StartAtOpeningAndNearClosing_UsesTheShorterServerDeadline()
+    {
+        var now = factory.Clock.GetUtcNow().UtcDateTime;
+        var data = await TestData.CreateAsync(factory, opensAt: now, closesAt: now.AddMinutes(5));
+        using var client = await TestData.LoginAsync(factory, data.Student);
+
+        using var started = await StartAsync(client, data.Quiz.Id);
+        Assert.Equal(HttpStatusCode.Created, started.StatusCode);
+        var view = await JsonAsync(started);
+        Assert.Equal(data.Quiz.ClosesAtUtc, view.GetProperty("deadline").GetDateTime());
+    }
+
+    [Fact]
+    public async Task StudentList_ShowsShortEffectiveTime_ThenLazyExpiresAnAbandonedAttempt()
+    {
+        var now = factory.Clock.GetUtcNow().UtcDateTime;
+        var data = await TestData.CreateAsync(factory, opensAt: now.AddMinutes(-1), closesAt: now.AddMinutes(8));
+        using var client = await TestData.LoginAsync(factory, data.Student);
+
+        using var available = await client.GetAsync("/api/student/quizzes");
+        var availableQuiz = (await JsonAsync(available)).GetProperty("quizzes").EnumerateArray()
+            .Single(q => q.GetProperty("id").GetGuid() == data.Quiz.Id);
+        Assert.Equal("Available", availableQuiz.GetProperty("status").GetString());
+        Assert.Equal(8, availableQuiz.GetProperty("effectiveMinutesIfStartedNow").GetInt32());
+
+        using var started = await StartAsync(client, data.Quiz.Id);
+        var id = (await JsonAsync(started)).GetProperty("id").GetGuid();
+        using var running = await client.GetAsync("/api/student/quizzes");
+        var runningQuiz = (await JsonAsync(running)).GetProperty("quizzes").EnumerateArray()
+            .Single(q => q.GetProperty("id").GetGuid() == data.Quiz.Id);
+        Assert.Equal("InProgress", runningQuiz.GetProperty("status").GetString());
+        Assert.Equal(id, runningQuiz.GetProperty("attempt").GetProperty("id").GetGuid());
+        Assert.Equal(JsonValueKind.Null, runningQuiz.GetProperty("effectiveMinutesIfStartedNow").ValueKind);
+
+        factory.Clock.Advance(TimeSpan.FromMinutes(8) + TimeSpan.FromTicks(1));
+        using var completed = await client.GetAsync("/api/student/quizzes");
+        var completedQuiz = (await JsonAsync(completed)).GetProperty("quizzes").EnumerateArray()
+            .Single(q => q.GetProperty("id").GetGuid() == data.Quiz.Id);
+        Assert.Equal("Completed", completedQuiz.GetProperty("status").GetString());
+        Assert.Equal("Expired", completedQuiz.GetProperty("attempt").GetProperty("status").GetString());
+        Assert.Equal(0m, completedQuiz.GetProperty("attempt").GetProperty("score").GetDecimal());
+    }
+
+    [Fact]
+    public async Task GetAttempt_AtDeadlineIsRunning_ThenLazilyExpiresAndHidesQuestions()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var client = await TestData.LoginAsync(factory, data.Student);
+        using var started = await StartAsync(client, data.Quiz.Id);
+        var attemptId = (await JsonAsync(started)).GetProperty("id").GetGuid();
+
+        factory.Clock.Advance(TimeSpan.FromMinutes(20));
+        using var onTime = await client.GetAsync($"/api/student/attempts/{attemptId}");
+        Assert.Equal("InProgress", (await JsonAsync(onTime)).GetProperty("status").GetString());
+        factory.Clock.Advance(TimeSpan.FromTicks(1));
+        using var expired = await client.GetAsync($"/api/student/attempts/{attemptId}");
+        var view = await JsonAsync(expired);
+        Assert.Equal("Expired", view.GetProperty("status").GetString());
+        Assert.Equal(0, view.GetProperty("questions").GetArrayLength());
+        Assert.Equal(0m, view.GetProperty("result").GetProperty("score").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("result").GetProperty("review").ValueKind);
+    }
+
+    [Fact]
+    public async Task GetResult_AfterDeadlineLazilyExpires_AndScoresOnlyTheSavedAnswer()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var client = await TestData.LoginAsync(factory, data.Student);
+        using var started = await StartAsync(client, data.Quiz.Id);
+        var attemptId = (await JsonAsync(started)).GetProperty("id").GetGuid();
+        var question = data.Quiz.Questions[0];
+        using var saved = await client.PutAsJsonAsync(
+            $"/api/student/attempts/{attemptId}/answers/{question.Id}",
+            new { selectedOptionId = question.Options.Single(o => o.IsCorrect).Id });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+
+        factory.Clock.Advance(TimeSpan.FromMinutes(20) + TimeSpan.FromTicks(1));
+        using var result = await client.GetAsync($"/api/student/attempts/{attemptId}/result");
+        var body = await JsonAsync(result);
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+        Assert.Equal("Expired", body.GetProperty("status").GetString());
+        Assert.Equal(4m, body.GetProperty("score").GetDecimal());
+        Assert.Equal(1, body.GetProperty("correctCount").GetInt32());
+        Assert.Equal(3, body.GetProperty("unansweredCount").GetInt32());
+        Assert.Equal(body.GetProperty("startedAt").GetDateTime().AddMinutes(20),
+            body.GetProperty("finalizedAt").GetDateTime());
+    }
+
+    [Fact]
+    public async Task SaveAnswer_UpsertsTheSameQuestion_LastWriteWinsWithoutDuplicateRows()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var client = await TestData.LoginAsync(factory, data.Student);
+        using var started = await StartAsync(client, data.Quiz.Id);
+        var attemptId = (await JsonAsync(started)).GetProperty("id").GetGuid();
+        var question = data.Quiz.Questions[0];
+        var url = $"/api/student/attempts/{attemptId}/answers/{question.Id}";
+        using var wrong = await client.PutAsJsonAsync(url,
+            new { selectedOptionId = question.Options.First(o => !o.IsCorrect).Id });
+        using var correct = await client.PutAsJsonAsync(url,
+            new { selectedOptionId = question.Options.Single(o => o.IsCorrect).Id });
+        Assert.Equal(HttpStatusCode.OK, wrong.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, correct.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var attempt = await db.QuizAttempts.Include(a => a.Answers).SingleAsync(a => a.Id == attemptId);
+        Assert.Single(attempt.Answers);
+        Assert.Equal(question.Options.Single(o => o.IsCorrect).Id, attempt.Answers[0].SelectedOptionId);
+        using var submitted = await client.PostAsync($"/api/student/attempts/{attemptId}/submit", null);
+        Assert.Equal(4m, (await JsonAsync(submitted)).GetProperty("score").GetDecimal());
+    }
+
+    [Fact]
+    public async Task StudentList_OrdersAllFiveStatuses_AndShowsOnlyAvailableEffectiveTime()
+    {
+        var data = await TestData.CreateAsync(factory);
+        var now = factory.Clock.GetUtcNow().UtcDateTime;
+        Quiz NewQuiz(string title, DateTime opens, DateTime closes)
+        {
+            var quiz = Quiz.Create(data.Teacher.Id,
+                new QuizDetails(title, null, opens, closes, 20, 0), [data.ClassRoom.Id],
+                [new QuestionDraft("Question", 3,
+                    [new OptionDraft("Yes", true), new OptionDraft("No", false)])], now.AddDays(-2));
+            quiz.Publish(now.AddDays(-1));
+            return quiz;
+        }
+
+        var running = NewQuiz("Running", now.AddHours(-1), now.AddHours(1));
+        var upcoming = NewQuiz("Upcoming", now.AddMinutes(5), now.AddHours(1));
+        var completed = NewQuiz("Completed", now.AddHours(-1), now.AddHours(1));
+        var missed = NewQuiz("Missed", now.AddHours(-2), now.AddMinutes(-1));
+        var runningAttempt = QuizAttempt.Start(running, data.Student.Id, now.AddMinutes(-1));
+        var completedAttempt = QuizAttempt.Start(completed, data.Student.Id, now.AddMinutes(-2));
+        completedAttempt.Submit(completed, now.AddMinutes(-1));
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Quizzes.AddRange(running, upcoming, completed, missed);
+            db.QuizAttempts.AddRange(runningAttempt, completedAttempt);
+            await db.SaveChangesAsync();
+        }
+
+        using var client = await TestData.LoginAsync(factory, data.Student);
+        using var response = await client.GetAsync("/api/student/quizzes");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var cards = (await JsonAsync(response)).GetProperty("quizzes").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "InProgress", "Available", "Upcoming", "Completed", "Missed" },
+            cards.Select(c => c.GetProperty("status").GetString()));
+        Assert.Equal(new[] { running.Id, data.Quiz.Id, upcoming.Id, completed.Id, missed.Id },
+            cards.Select(c => c.GetProperty("id").GetGuid()));
+        Assert.Equal(20, cards[1].GetProperty("effectiveMinutesIfStartedNow").GetInt32());
+        Assert.All(cards.Where((_, index) => index != 1),
+            card => Assert.Equal(JsonValueKind.Null, card.GetProperty("effectiveMinutesIfStartedNow").ValueKind));
+        Assert.Equal("Submitted", cards[3].GetProperty("attempt").GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, cards[4].GetProperty("attempt").ValueKind);
     }
 
     private static Task<HttpResponseMessage> StartAsync(HttpClient client, Guid quizId) =>

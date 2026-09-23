@@ -13,6 +13,18 @@ namespace TutoringQuiz.Api.IntegrationTests.Infrastructure;
 public sealed class TestAppFactory : WebApplicationFactory<Program>
 {
     private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"tq-{Guid.NewGuid():N}.db");
+    private readonly int _loginPermitsPerMinute;
+    private readonly bool _seedEnabled;
+
+    public TestAppFactory() : this(seedEnabled: false, loginPermitsPerMinute: 1000) { }
+
+    internal TestAppFactory(int loginPermitsPerMinute) : this(seedEnabled: false, loginPermitsPerMinute) { }
+
+    internal TestAppFactory(bool seedEnabled, int loginPermitsPerMinute = 1000)
+    {
+        _seedEnabled = seedEnabled;
+        _loginPermitsPerMinute = loginPermitsPerMinute;
+    }
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 9, 24, 10, 0, 0, TimeSpan.Zero));
     public string DatabasePath => _databasePath;
@@ -25,8 +37,8 @@ public sealed class TestAppFactory : WebApplicationFactory<Program>
             new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] = ConnectionString,
-                ["Seed:Enabled"] = "false",
-                ["RateLimiting:LoginPermitsPerMinute"] = "1000",
+                ["Seed:Enabled"] = _seedEnabled.ToString(),
+                ["RateLimiting:LoginPermitsPerMinute"] = _loginPermitsPerMinute.ToString(),
             }));
         return base.CreateHost(builder);
     }

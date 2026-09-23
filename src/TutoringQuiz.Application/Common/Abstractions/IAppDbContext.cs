@@ -22,4 +22,11 @@ public interface IAppDbContext
     ChangeTracker ChangeTracker { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Runs a short read-check-write use case under a serialized write transaction, so a competing write
+    /// cannot slip between a rule check and its mutation.
+    /// </summary>
+    Task<T> InWriteTransactionAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct);
+    Task InWriteTransactionAsync(Func<CancellationToken, Task> action, CancellationToken ct);
 }
