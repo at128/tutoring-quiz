@@ -23,20 +23,22 @@ export function formatCountdown(ms: number): string {
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`
 }
 
-const dateTime = new Intl.DateTimeFormat('en-GB', {
-  weekday: 'short',
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-})
-const timeOnly = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' })
+// Fixed English abbreviations: browsers disagree ("Sep" vs "Sept"), the design uses these.
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** "Thu 8 Oct" in the viewer's local time. */
+const shortDay = (date: Date) => `${WEEKDAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}`
+
+/** "10:00" (24-hour) in the viewer's local time. */
+export function formatTime(iso: string): string {
+  const date = new Date(iso)
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
 
 /** "Thu 8 Oct, 10:00" in the viewer's local time. */
-export const formatDateTime = (iso: string) => dateTime.format(new Date(iso))
-
-/** "10:00" in the viewer's local time. */
-export const formatTime = (iso: string) => timeOnly.format(new Date(iso))
+export const formatDateTime = (iso: string) => `${shortDay(new Date(iso))}, ${formatTime(iso)}`
 
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
 
@@ -55,4 +57,24 @@ export function formatMinutes(minutes: number): string {
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`
+}
+
+const longDate = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+
+/** "Thursday 24 September" (the list header). */
+export const formatLongDate = (ms: number) => longDate.format(new Date(ms))
+
+/** "Fri 18 Sep". */
+export const formatShortDate = (iso: string) => shortDay(new Date(iso))
+
+const localDayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+
+/** "Today, 10:20" / "Tomorrow, 09:00" / "Thu 8 Oct, 10:00", relative to the server's now, in local time. */
+export function formatDayTime(iso: string, nowMs: number): string {
+  const target = new Date(iso)
+  const today = new Date(nowMs)
+  const tomorrow = new Date(nowMs + DAY)
+  if (localDayKey(target) === localDayKey(today)) return `Today, ${formatTime(iso)}`
+  if (localDayKey(target) === localDayKey(tomorrow)) return `Tomorrow, ${formatTime(iso)}`
+  return formatDateTime(iso)
 }

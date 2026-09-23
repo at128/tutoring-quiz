@@ -1,16 +1,17 @@
-import { ButtonLink } from '../components/Button'
-import { Mark } from '../components/PageShell'
+import { Logo } from '../components/Icon'
+import { NotAvailableState } from '../components/States'
 
 export function NotFoundPage() {
   return (
     <div className="min-h-dvh bg-desk">
-      <main className="mx-auto flex w-full max-w-[420px] flex-col items-center gap-3 px-4 py-16 text-center">
-        <Mark />
-        <h1 className="text-page font-bold">This page doesn't exist</h1>
-        <p className="text-small text-ink-2">The link may be old or mistyped. Your quizzes are on the home page.</p>
-        <ButtonLink to="/" variant="secondary" className="mt-2">
-          Go to my quizzes
-        </ButtonLink>
+      <main className="mx-auto flex w-full max-w-[640px] flex-col gap-6 px-4 pt-12 pb-8">
+        <div className="flex items-center gap-2.5 font-bold">
+          <Logo />
+          Weekly Quizzes
+        </div>
+        <NotAvailableState title="This page doesn’t exist" backTo="/" backLabel="Go to your quizzes">
+          The link may be old or mistyped. Your quizzes are on the home page.
+        </NotAvailableState>
       </main>
     </div>
   )
