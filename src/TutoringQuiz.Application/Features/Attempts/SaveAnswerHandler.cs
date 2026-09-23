@@ -15,26 +15,33 @@ public sealed class SaveAnswerHandler(
         Guid attemptId, Guid questionId, Guid? selectedOptionId, CancellationToken ct) =>
         db.RunWithRetryOnConflictAsync(async token =>
         {
-            try
+            // Acquire the write lock before checking the server clock: waiting on another writer cannot
+            // turn an on-time decision into a write that starts after the deadline.
+            var outcome = await db.InWriteTransactionAsync(inner =>
+                ExecuteAsync(attemptId, questionId, selectedOptionId, inner), token);
+            return outcome switch
             {
-                return await ExecuteAsync(attemptId, questionId, selectedOptionId, token);
-            }
-            catch (DuplicateKeyException)
-            {
-                // Two tabs inserted an answer to the same question. Reload and let the last valid write win.
-                db.ChangeTracker.Clear();
-                return await ExecuteAsync(attemptId, questionId, selectedOptionId, token);
-            }
+                SaveOutcome.Saved saved => saved.Response,
+                SaveOutcome.Expired => throw new ConflictException(
+                    ErrorCodes.AttemptDeadlinePassed, "Time is up. This answer was not saved."),
+                _ => throw new InvalidOperationException("Unknown answer-save outcome."),
+            };
         }, ct);
 
-    private async Task<SaveAnswerResponse> ExecuteAsync(
+    private abstract record SaveOutcome
+    {
+        public sealed record Saved(SaveAnswerResponse Response) : SaveOutcome;
+        public sealed record Expired : SaveOutcome;
+    }
+
+    private async Task<SaveOutcome> ExecuteAsync(
         Guid attemptId, Guid questionId, Guid? selectedOptionId, CancellationToken ct)
     {
         var (attempt, quiz) = await access.OwnedAttemptAsync(attemptId, ct);
         var now = clock.GetUtcNow().UtcDateTime;
 
         if (await finalizer.FinalizeIfExpiredAsync(attempt, quiz, now, ct) > 0)
-            throw new ConflictException(ErrorCodes.AttemptDeadlinePassed, "Time is up. This answer was not saved.");
+            return new SaveOutcome.Expired(); // Commit Expired before returning 409.
         if (attempt.IsFinalized)
             throw new ConflictException(ErrorCodes.AttemptNotInProgress, "This attempt is already finished.");
 
@@ -42,6 +49,6 @@ public sealed class SaveAnswerHandler(
             ?? throw new DomainException(ErrorCodes.AnswerInvalidOption, "This question is not part of the quiz.");
         var answer = attempt.SaveAnswer(question, selectedOptionId, now);
         await db.SaveChangesAsync(ct);
-        return new SaveAnswerResponse(questionId, answer.SelectedOptionId, answer.AnsweredAtUtc);
+        return new SaveOutcome.Saved(new SaveAnswerResponse(questionId, answer.SelectedOptionId, answer.AnsweredAtUtc));
     }
 }

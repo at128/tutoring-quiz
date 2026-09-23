@@ -7,11 +7,12 @@ namespace TutoringQuiz.Application.Features.Attempts;
 public sealed class SubmitAttemptHandler(IAppDbContext db, StudentAttemptAccess access, TimeProvider clock)
 {
     public Task<AttemptResult> HandleAsync(Guid attemptId, CancellationToken ct) =>
-        db.RunWithRetryOnConflictAsync(async token =>
-        {
-            var (attempt, quiz) = await access.OwnedAttemptAsync(attemptId, token);
-            if (attempt.Submit(quiz, clock.GetUtcNow().UtcDateTime))
-                await db.SaveChangesAsync(token);
-            return AttemptViews.ToResult(attempt, quiz);
-        }, ct);
+        db.RunWithRetryOnConflictAsync(token =>
+            db.InWriteTransactionAsync(async inner =>
+            {
+                var (attempt, quiz) = await access.OwnedAttemptAsync(attemptId, inner);
+                if (attempt.Submit(quiz, clock.GetUtcNow().UtcDateTime))
+                    await db.SaveChangesAsync(inner);
+                return AttemptViews.ToResult(attempt, quiz);
+            }, token), ct);
 }

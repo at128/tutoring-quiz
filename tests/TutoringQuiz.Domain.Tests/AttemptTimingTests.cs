@@ -23,6 +23,16 @@ public sealed class AttemptTimingTests
         Assert.Equal(10, AttemptTiming.EffectiveMinutesIfStartedNow(start, 20, Closes));
     }
 
+    [Fact]
+    public void Deadline_NearMaximumDate_UsesCloseWithoutOverflow()
+    {
+        var close = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+        var start = close.AddMinutes(-5);
+
+        Assert.Equal(close, AttemptTiming.Deadline(start, 20, close));
+        Assert.Equal(5, AttemptTiming.EffectiveMinutesIfStartedNow(start, 20, close));
+    }
+
     [Fact] // D8
     public void IsOpenAt_OpenIsInclusive_CloseIsExclusive()
     {

@@ -48,6 +48,40 @@ public sealed class AuthContractTests(TestAppFactory factory) : IClassFixture<Te
         Assert.Null(forbidden.Headers.Location);
     }
 
+    [Fact]
+    public async Task LoginRateLimit_RejectsExcessRequestsAsProblemDetails()
+    {
+        using var limitedFactory = new TestAppFactory(loginPermitsPerMinute: 2);
+        var data = await TestData.CreateAsync(limitedFactory);
+        using var client = limitedFactory.CreateClient();
+        for (var i = 0; i < 2; i++)
+        {
+            using var rejectedPassword = await client.PostAsJsonAsync("/api/auth/login",
+                new { username = data.Student.Username, password = "wrong password" });
+            Assert.Equal(HttpStatusCode.Unauthorized, rejectedPassword.StatusCode);
+        }
+
+        using var limited = await client.PostAsJsonAsync("/api/auth/login",
+            new { username = data.Student.Username, password = TestData.StudentPassword });
+        Assert.Equal((HttpStatusCode)429, limited.StatusCode);
+        Assert.Equal("rate_limited", await CodeAsync(limited));
+        Assert.False(limited.Headers.Contains("Set-Cookie"));
+    }
+
+    [Fact]
+    public async Task Logout_ClearsSessionAndIsIdempotent()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var client = await TestData.LoginAsync(factory, data.Student);
+        using var first = await client.PostAsync("/api/auth/logout", null);
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        using var me = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
+        Assert.Equal("auth.unauthenticated", await CodeAsync(me));
+        using var second = await client.PostAsync("/api/auth/logout", null);
+        Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
+    }
+
     private static async Task<string?> CodeAsync(HttpResponseMessage response)
     {
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);

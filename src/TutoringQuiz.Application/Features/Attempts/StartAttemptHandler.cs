@@ -14,7 +14,8 @@ public sealed class StartAttemptHandler(
     IAppDbContext db, StudentAttemptAccess access, AttemptFinalizer finalizer, TimeProvider clock)
 {
     public Task<StartAttemptOutcome> HandleAsync(Guid quizId, CancellationToken ct) =>
-        db.RunWithRetryOnConflictAsync(token => ExecuteAsync(quizId, token), ct);
+        db.RunWithRetryOnConflictAsync(
+            token => db.InWriteTransactionAsync(inner => ExecuteAsync(quizId, inner), token), ct);
 
     private async Task<StartAttemptOutcome> ExecuteAsync(Guid quizId, CancellationToken ct)
     {

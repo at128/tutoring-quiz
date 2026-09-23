@@ -52,6 +52,10 @@ public sealed class Quiz : Entity
             throw new DomainException(ErrorCodes.QuizLocked,
                 "Students have already started this quiz, so its content can no longer change.");
         QuizRules.EnsureValid(details, classRoomIds, questions);
+        if (IsPublished && questions.Count == 0)
+            throw new DomainException(ErrorCodes.QuizInvalidForPublish,
+                "A published quiz must keep at least one question.",
+                new Dictionary<string, string[]> { ["questions"] = ["Add at least one question."] });
         Apply(details, classRoomIds, questions);
         UpdatedAtUtc = nowUtc;
     }
@@ -60,13 +64,7 @@ public sealed class Quiz : Entity
     {
         if (IsPublished) return;
 
-        var errors = new Dictionary<string, string[]>();
-        if (_questions.Count == 0)
-            errors["questions"] = ["Add at least one question before publishing."];
-        if (ClosesAtUtc <= nowUtc)
-            errors["closesAt"] = ["The closing time must be in the future."];
-        if (errors.Count > 0)
-            throw new DomainException(ErrorCodes.QuizInvalidForPublish, "This quiz can't be published yet.", errors);
+        EnsurePublishable(_questions.Count, ClosesAtUtc, nowUtc);
 
         IsPublished = true;
         UpdatedAtUtc = nowUtc;
@@ -98,6 +96,17 @@ public sealed class Quiz : Entity
         : TeacherQuizState.Closed;
 
     public bool IsAssignedTo(Guid classRoomId) => _classRooms.Any(c => c.ClassRoomId == classRoomId);
+
+    private static void EnsurePublishable(int questionCount, DateTime closesAtUtc, DateTime nowUtc)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (questionCount == 0)
+            errors["questions"] = ["Add at least one question before publishing."];
+        if (closesAtUtc <= nowUtc)
+            errors["closesAt"] = ["The closing time must be in the future."];
+        if (errors.Count > 0)
+            throw new DomainException(ErrorCodes.QuizInvalidForPublish, "This quiz can't be published yet.", errors);
+    }
 
     private void Apply(QuizDetails details, IReadOnlyCollection<Guid> classRoomIds, IReadOnlyList<QuestionDraft> questions)
     {
