@@ -15,6 +15,8 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
 
 **Cookie authentication instead of JWT.** Same origin, so an HttpOnly cookie is simpler and safer than tokens in JavaScript storage, and it survives phone refreshes without a refresh-token scheme. CSRF is mitigated by `SameSite=Strict`, same origin and JSON-only mutation endpoints. `Secure` follows the request scheme so testing over `http://<LAN-IP>` on a real phone works; in production behind HTTPS it would always be secure.
 
+**Toolchain: .NET 9, oxlint.** The plan preferred .NET 10 (LTS), but the development machine only has the .NET 9 SDK, so the solution targets `net9.0` (pinned in `global.json` with `rollForward: latestFeature`; Docker uses the matching `9.0` images). Moving to .NET 10 means changing `TargetFramework` in `Directory.Build.props`, the SDK in `global.json` and the Docker tags. The frontend linter is **oxlint**, because that's what the current Vite template ships (the plan said ESLint, which older templates used); `npm run lint` is still the gate.
+
 **Server-authoritative everything.** The browser only displays time and results. Eligibility, deadlines, and scores are computed on the server; the timer on the phone is `deadline − server time`.
 
 ## 2. Product decisions (gaps in the brief)
