@@ -1,1 +1,88 @@
 @import "tailwindcss";
+
+/* Design tokens: a paper answer sheet moved onto a phone (docs/DESIGN_HANDOFF_FINAL.md). */
+@theme {
+  --font-sans: "IBM Plex Sans Arabic", system-ui, "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink: #1d2b4f;
+  --color-ink-2: #3c4a6b;
+  --color-muted: #5a6680;
+  --color-paper: #ffffff;
+  --color-desk: #f3f5f9;
+  --color-rule: #cbd5e6;
+  --color-rule-soft: #e4e9f2;
+  --color-strong: #9aa8c3;
+  --color-tint: #edf1f9;
+  --color-focus: #3461d1;
+  --color-amber: #b7791f;
+  --color-amber-ink: #8a5712;
+  --color-amber-bg: #fdf4e3;
+  --color-amber-line: #e6c387;
+  --color-red: #b42318;
+  --color-red-bg: #fdedeb;
+  --color-red-line: #f1b5ae;
+  --color-green: #1f7a4d;
+  --color-green-bg: #e8f4ed;
+  --color-green-line: #a9d5bc;
+
+  --radius-control: 6px;
+  --radius-option: 8px;
+  --radius-sheet: 10px;
+  --radius-dialog: 12px;
+
+  --text-display: 28px;
+  --text-display--line-height: 36px;
+  --text-page: 22px;
+  --text-page--line-height: 30px;
+  --text-question: 20px;
+  --text-question--line-height: 33px;
+  --text-card: 18px;
+  --text-card--line-height: 26px;
+  --text-option: 17px;
+  --text-option--line-height: 26px;
+  --text-body: 16px;
+  --text-body--line-height: 24px;
+  --text-small: 14px;
+  --text-small--line-height: 20px;
+  --text-meta: 13px;
+  --text-meta--line-height: 18px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-desk font-sans text-body text-ink antialiased;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* Inputs at 16px+ so iOS doesn't zoom on focus. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Arabic runs need more line height than Latin text. */
+.auto-text:dir(rtl) {
+  line-height: 1.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
