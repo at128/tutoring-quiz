@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using TutoringQuiz.Api.IntegrationTests.Infrastructure;
+using TutoringQuiz.Infrastructure.Persistence;
 
 namespace TutoringQuiz.Api.IntegrationTests;
 
@@ -80,6 +82,69 @@ public sealed class AuthContractTests(TestAppFactory factory) : IClassFixture<Te
         Assert.Equal("auth.unauthenticated", await CodeAsync(me));
         using var second = await client.PostAsync("/api/auth/logout", null);
         Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_ValidatesMissingAndOversizedFields_AndUnknownUserHasNoSession()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var client = factory.CreateClient();
+        using var missing = await client.PostAsJsonAsync("/api/auth/login", new { username = "  ", password = "" });
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        using (var body = JsonDocument.Parse(await missing.Content.ReadAsStringAsync()))
+        {
+            var errors = body.RootElement.GetProperty("errors");
+            Assert.True(errors.TryGetProperty("username", out _));
+            Assert.True(errors.TryGetProperty("password", out _));
+        }
+
+        using var oversized = await client.PostAsJsonAsync("/api/auth/login",
+            new { username = new string('u', 51), password = new string('p', 129) });
+        Assert.Equal(HttpStatusCode.BadRequest, oversized.StatusCode);
+        using (var body = JsonDocument.Parse(await oversized.Content.ReadAsStringAsync()))
+        {
+            var errors = body.RootElement.GetProperty("errors");
+            Assert.True(errors.TryGetProperty("username", out _));
+            Assert.True(errors.TryGetProperty("password", out _));
+        }
+
+        using var unknown = await client.PostAsJsonAsync("/api/auth/login",
+            new { username = data.Student.Username + ".absent", password = TestData.StudentPassword });
+        Assert.Equal(HttpStatusCode.Unauthorized, unknown.StatusCode);
+        Assert.Equal("auth.invalid_credentials", await CodeAsync(unknown));
+        Assert.False(unknown.Headers.Contains("Set-Cookie"));
+        using var me = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
+    }
+
+    [Fact]
+    public async Task Me_ProjectsRoleAndClass_AndRejectsADeletedSessionUser()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var student = await TestData.LoginAsync(factory, data.Student);
+        using var teacher = await TestData.LoginAsync(factory, data.Teacher);
+        using var studentMe = await student.GetAsync("/api/auth/me");
+        using var teacherMe = await teacher.GetAsync("/api/auth/me");
+        using (var body = JsonDocument.Parse(await studentMe.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("Student", body.RootElement.GetProperty("role").GetString());
+            Assert.Equal(data.ClassRoom.Id, body.RootElement.GetProperty("classRoom").GetProperty("id").GetGuid());
+        }
+        using (var body = JsonDocument.Parse(await teacherMe.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("Teacher", body.RootElement.GetProperty("role").GetString());
+            Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("classRoom").ValueKind);
+        }
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Users.Remove((await db.Users.FindAsync(data.Student.Id))!);
+            await db.SaveChangesAsync();
+        }
+        using var staleMe = await student.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, staleMe.StatusCode);
+        Assert.Equal("auth.unauthenticated", await CodeAsync(staleMe));
     }
 
     private static async Task<string?> CodeAsync(HttpResponseMessage response)

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TutoringQuiz.Api.IntegrationTests.Infrastructure;
 using TutoringQuiz.Application.Common.Abstractions;
+using TutoringQuiz.Domain.Quizzes;
 using TutoringQuiz.Domain.Users;
 using TutoringQuiz.Infrastructure.Persistence;
 
@@ -441,6 +442,136 @@ public sealed class TeacherWorkflowTests(TestAppFactory factory) : IClassFixture
         Assert.Equal("auth.forbidden", await CodeAsync(wrongRole));
         Assert.Equal(HttpStatusCode.Unauthorized, noSession.StatusCode);
         Assert.Equal("auth.unauthenticated", await CodeAsync(noSession));
+    }
+
+    [Fact]
+    public async Task TeacherList_OrdersStatesAndReportsAssignedStartedAndFinalizedCounts()
+    {
+        var data = await TestData.CreateAsync(factory);
+        var now = factory.Clock.GetUtcNow().UtcDateTime;
+        Quiz NewQuiz(string title, DateTime opens, DateTime closes, bool publish)
+        {
+            var quiz = Quiz.Create(data.Teacher.Id,
+                new QuizDetails(title, null, opens, closes, 20, 0), [data.ClassRoom.Id],
+                [new QuestionDraft("Question", 2,
+                    [new OptionDraft("Yes", true), new OptionDraft("No", false)])], now.AddDays(-2));
+            if (publish) quiz.Publish(now.AddDays(-1));
+            return quiz;
+        }
+        var scheduled = NewQuiz("Scheduled", now.AddMinutes(5), now.AddHours(1), true);
+        var draft = NewQuiz("Draft", now.AddHours(-2), now.AddHours(1), false);
+        var closed = NewQuiz("Closed", now.AddHours(-2), now.AddMinutes(-1), true);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Quizzes.AddRange(scheduled, draft, closed);
+            await db.SaveChangesAsync();
+        }
+
+        using var student = await TestData.LoginAsync(factory, data.Student);
+        using var teacher = await TestData.LoginAsync(factory, data.Teacher);
+        using var start = await student.PostAsync($"/api/student/quizzes/{data.Quiz.Id}/attempt", null);
+        var attemptId = (await JsonAsync(start)).GetProperty("id").GetGuid();
+        using var submit = await student.PostAsync($"/api/student/attempts/{attemptId}/submit", null);
+        Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+
+        using var list = await teacher.GetAsync("/api/teacher/quizzes");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        var rows = (await JsonAsync(list)).EnumerateArray().ToArray();
+        Assert.Equal(new[] { "Open", "Open", "Scheduled", "Draft", "Closed" },
+            rows.Select(row => row.GetProperty("state").GetString()));
+        var active = rows.Single(row => row.GetProperty("id").GetGuid() == data.Quiz.Id);
+        Assert.Equal(2, active.GetProperty("assignedStudentCount").GetInt32());
+        Assert.Equal(1, active.GetProperty("startedCount").GetInt32());
+        Assert.Equal(1, active.GetProperty("finalizedCount").GetInt32());
+        Assert.True(active.GetProperty("isLocked").GetBoolean());
+        Assert.False(rows.Single(row => row.GetProperty("id").GetGuid() == draft.Id)
+            .GetProperty("isPublished").GetBoolean());
+    }
+
+    [Fact]
+    public async Task TeacherResults_IncludeBothClasses_AndAggregateOnlyFinalizedScores()
+    {
+        var data = await TestData.CreateAsync(factory);
+        var now = factory.Clock.GetUtcNow().UtcDateTime;
+        using var teacher = await TestData.LoginAsync(factory, data.Teacher);
+        using var firstStudent = await TestData.LoginAsync(factory, data.Student);
+        using var secondStudent = await TestData.LoginAsync(factory, data.OtherClassStudent);
+        var payload = Payload(data.ClassRoom.Id, now) with
+        {
+            ClassRoomIds = [data.ClassRoom.Id, data.OtherClassRoom.Id],
+        };
+        using var created = await teacher.PostAsJsonAsync("/api/teacher/quizzes", payload);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var quizId = (await JsonAsync(created)).GetProperty("id").GetGuid();
+        var resultsUrl = $"/api/teacher/quizzes/{quizId}/results";
+        using var published = await teacher.PostAsync($"/api/teacher/quizzes/{quizId}/publish", null);
+        Assert.Equal(HttpStatusCode.OK, published.StatusCode);
+
+        using var empty = await teacher.GetAsync(resultsUrl);
+        var emptySummary = (await JsonAsync(empty)).GetProperty("summary");
+        Assert.Equal(3, emptySummary.GetProperty("assignedCount").GetInt32());
+        Assert.Equal(0, emptySummary.GetProperty("startedCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, emptySummary.GetProperty("averageScore").ValueKind);
+        Assert.Equal(JsonValueKind.Null, emptySummary.GetProperty("highestScore").ValueKind);
+
+        using var firstStart = await firstStudent.PostAsync($"/api/student/quizzes/{quizId}/attempt", null);
+        using var secondStart = await secondStudent.PostAsync($"/api/student/quizzes/{quizId}/attempt", null);
+        var firstAttempt = await JsonAsync(firstStart);
+        var secondAttempt = await JsonAsync(secondStart);
+        Assert.Equal(HttpStatusCode.Created, firstStart.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, secondStart.StatusCode);
+        using var running = await teacher.GetAsync(resultsUrl);
+        var runningBody = await JsonAsync(running);
+        Assert.Equal(2, runningBody.GetProperty("summary").GetProperty("startedCount").GetInt32());
+        Assert.Equal(0, runningBody.GetProperty("summary").GetProperty("finalizedCount").GetInt32());
+        Assert.Equal(2, runningBody.GetProperty("rows").EnumerateArray()
+            .Count(row => row.GetProperty("status").GetString() == "InProgress"));
+
+        async Task AnswerAndSubmit(HttpClient client, JsonElement attempt, int optionIndex)
+        {
+            var question = attempt.GetProperty("questions")[0];
+            var url = $"/api/student/attempts/{attempt.GetProperty("id").GetGuid()}/answers/{question.GetProperty("id").GetGuid()}";
+            using var answer = await client.PutAsJsonAsync(url,
+                new { selectedOptionId = question.GetProperty("options")[optionIndex].GetProperty("id").GetGuid() });
+            Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+            using var submit = await client.PostAsync(
+                $"/api/student/attempts/{attempt.GetProperty("id").GetGuid()}/submit", null);
+            Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+        }
+        await AnswerAndSubmit(firstStudent, firstAttempt, 0);
+        await AnswerAndSubmit(secondStudent, secondAttempt, 1);
+
+        using var results = await teacher.GetAsync(resultsUrl);
+        var summary = (await JsonAsync(results)).GetProperty("summary");
+        Assert.Equal(3, summary.GetProperty("assignedCount").GetInt32());
+        Assert.Equal(2, summary.GetProperty("finalizedCount").GetInt32());
+        Assert.Equal(1.5m, summary.GetProperty("averageScore").GetDecimal());
+        Assert.Equal(4m, summary.GetProperty("highestScore").GetDecimal());
+        Assert.Equal(-1m, summary.GetProperty("lowestScore").GetDecimal());
+        Assert.Equal(37.5m, summary.GetProperty("averagePercentage").GetDecimal());
+    }
+
+    [Fact]
+    public async Task PublishAndUnpublishAreIdempotent_AndRepeatedFullUpdateKeepsOneSetOfQuestions()
+    {
+        var data = await TestData.CreateAsync(factory, published: false);
+        using var teacher = await TestData.LoginAsync(factory, data.Teacher);
+        var path = $"/api/teacher/quizzes/{data.Quiz.Id}";
+        var payload = Payload(data.ClassRoom.Id, factory.Clock.GetUtcNow().UtcDateTime);
+        using var firstUpdate = await teacher.PutAsJsonAsync(path, payload);
+        using var secondUpdate = await teacher.PutAsJsonAsync(path, payload);
+        Assert.Equal(HttpStatusCode.OK, firstUpdate.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondUpdate.StatusCode);
+        Assert.Equal(1, (await JsonAsync(secondUpdate)).GetProperty("questions").GetArrayLength());
+        using var publish = await teacher.PostAsync(path + "/publish", null);
+        using var publishAgain = await teacher.PostAsync(path + "/publish", null);
+        Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
+        Assert.True((await JsonAsync(publishAgain)).GetProperty("isPublished").GetBoolean());
+        using var unpublish = await teacher.PostAsync(path + "/unpublish", null);
+        using var unpublishAgain = await teacher.PostAsync(path + "/unpublish", null);
+        Assert.Equal(HttpStatusCode.OK, unpublish.StatusCode);
+        Assert.False((await JsonAsync(unpublishAgain)).GetProperty("isPublished").GetBoolean());
     }
 
     private async Task<User> AddTeacherAsync()

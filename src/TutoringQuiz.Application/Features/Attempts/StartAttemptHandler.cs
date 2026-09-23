@@ -13,11 +13,26 @@ public sealed record StartAttemptOutcome(AttemptView Attempt, bool Created);
 public sealed class StartAttemptHandler(
     IAppDbContext db, StudentAttemptAccess access, AttemptFinalizer finalizer, TimeProvider clock)
 {
-    public Task<StartAttemptOutcome> HandleAsync(Guid quizId, CancellationToken ct) =>
-        db.RunWithRetryOnConflictAsync(
+    public async Task<StartAttemptOutcome> HandleAsync(Guid quizId, CancellationToken ct)
+    {
+        var decision = await db.RunWithRetryOnConflictAsync(
             token => db.InWriteTransactionAsync(inner => ExecuteAsync(quizId, inner), token), ct);
+        return decision switch
+        {
+            StartDecision.Started started => started.Outcome,
+            StartDecision.AlreadyTaken => throw new ConflictException(
+                ErrorCodes.AttemptAlreadyTaken, "You've already taken this quiz."),
+            _ => throw new InvalidOperationException("Unknown attempt-start decision."),
+        };
+    }
 
-    private async Task<StartAttemptOutcome> ExecuteAsync(Guid quizId, CancellationToken ct)
+    private abstract record StartDecision
+    {
+        public sealed record Started(StartAttemptOutcome Outcome) : StartDecision;
+        public sealed record AlreadyTaken : StartDecision;
+    }
+
+    private async Task<StartDecision> ExecuteAsync(Guid quizId, CancellationToken ct)
     {
         var (studentId, classRoomId) = access.Student;
         var quiz = await access.VisibleQuizAsync(quizId, classRoomId, ct);
@@ -31,7 +46,8 @@ public sealed class StartAttemptHandler(
         try
         {
             await db.SaveChangesAsync(ct);
-            return new StartAttemptOutcome(AttemptViews.ToView(attempt, quiz, now), Created: true);
+            return new StartDecision.Started(
+                new StartAttemptOutcome(AttemptViews.ToView(attempt, quiz, now), Created: true));
         }
         catch (DuplicateKeyException)
         {
@@ -43,12 +59,13 @@ public sealed class StartAttemptHandler(
         }
     }
 
-    private async Task<StartAttemptOutcome> ResumeOrRejectAsync(
+    private async Task<StartDecision> ResumeOrRejectAsync(
         QuizAttempt attempt, Quiz quiz, DateTime nowUtc, CancellationToken ct)
     {
         await finalizer.FinalizeIfExpiredAsync(attempt, quiz, nowUtc, ct);
         if (attempt.IsFinalized)
-            throw new ConflictException(ErrorCodes.AttemptAlreadyTaken, "You've already taken this quiz.");
-        return new StartAttemptOutcome(AttemptViews.ToView(attempt, quiz, nowUtc), Created: false);
+            return new StartDecision.AlreadyTaken();
+        return new StartDecision.Started(
+            new StartAttemptOutcome(AttemptViews.ToView(attempt, quiz, nowUtc), Created: false));
     }
 }
