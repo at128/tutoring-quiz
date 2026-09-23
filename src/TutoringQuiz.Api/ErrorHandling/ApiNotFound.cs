@@ -1,11 +1,12 @@
+using TutoringQuiz.Domain.Common;
+
 namespace TutoringQuiz.Api.ErrorHandling;
 
 public static class ApiNotFound
 {
-    public static IResult Handle(HttpContext context) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Not found",
-            detail: $"There is no API endpoint at {context.Request.Method} {context.Request.Path}.",
-            extensions: new Dictionary<string, object?> { ["code"] = "not_found" });
+    /// <summary>Unmatched <c>/api/*</c> routes (including malformed ids) get a ProblemDetails 404, never index.html.</summary>
+    public static Task Handle(HttpContext context) =>
+        ApiProblems.WriteAsync(context, ApiProblems.Create(
+            ErrorCodes.NotFound,
+            $"There is no API endpoint at {context.Request.Method} {context.Request.Path}."));
 }

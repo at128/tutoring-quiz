@@ -3,4 +3,8 @@
     <ProjectReference Include="..\TutoringQuiz.Application\TutoringQuiz.Application.csproj" />
     <ProjectReference Include="..\TutoringQuiz.Domain\TutoringQuiz.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+  </ItemGroup>
 </Project>

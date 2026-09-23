@@ -3,4 +3,14 @@
     <ProjectReference Include="..\TutoringQuiz.Application\TutoringQuiz.Application.csproj" />
     <ProjectReference Include="..\TutoringQuiz.Infrastructure\TutoringQuiz.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Local runs read the repo's seed/ files from the output folder (Docker copies them to /app/seed instead). -->
+    <None Include="..\..\seed\**\*" LinkBase="seed" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" />
+  </ItemGroup>
 </Project>
