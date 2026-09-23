@@ -16,7 +16,13 @@ public static class DependencyInjection
 
         // Student
         services.AddScoped<AttemptFinalizer>();
+        services.AddScoped<StudentAttemptAccess>();
         services.AddScoped<ListStudentQuizzesHandler>();
+        services.AddScoped<StartAttemptHandler>();
+        services.AddScoped<GetAttemptHandler>();
+        services.AddScoped<SaveAnswerHandler>();
+        services.AddScoped<SubmitAttemptHandler>();
+        services.AddScoped<GetAttemptResultHandler>();
 
         return services;
     }
