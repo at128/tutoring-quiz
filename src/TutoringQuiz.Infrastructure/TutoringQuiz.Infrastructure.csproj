@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\TutoringQuiz.Application\TutoringQuiz.Application.csproj" />
+    <ProjectReference Include="..\TutoringQuiz.Domain\TutoringQuiz.Domain.csproj" />
+  </ItemGroup>
+</Project>
