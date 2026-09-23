@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using TutoringQuiz.Application.Features.Attempts;
 using TutoringQuiz.Application.Features.Auth;
+using TutoringQuiz.Application.Features.StudentQuizzes;
 
 namespace TutoringQuiz.Application;
 
@@ -11,6 +13,10 @@ public static class DependencyInjection
         // Auth
         services.AddScoped<LoginHandler>();
         services.AddScoped<GetCurrentUserHandler>();
+
+        // Student
+        services.AddScoped<AttemptFinalizer>();
+        services.AddScoped<ListStudentQuizzesHandler>();
 
         return services;
     }

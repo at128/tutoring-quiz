@@ -15,7 +15,10 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
 
-        services.AddDbContext<AppDbContext>(options => options.UseSqlite(connectionString));
+        // Split queries: loading a quiz with questions and options must not multiply rows per option.
+        services.AddDbContext<AppDbContext>(options => options.UseSqlite(
+            connectionString,
+            sqlite => sqlite.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
         services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
