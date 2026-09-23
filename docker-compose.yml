@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    image: tutoring-quiz
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - tq-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  tq-data:

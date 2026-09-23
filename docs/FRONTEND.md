@@ -3,7 +3,7 @@
 Implementation owner: Claude Code. Lives in `frontend/`. Talks only to the API in `docs/API.md`. Codex reviews the frontend independently at checkpoints.
 
 ## Stack (keep it small)
-React + TypeScript (strict) + Vite, Tailwind CSS, React Router, TanStack Query, React Hook Form for the quiz editor. ESLint via the Vite template. No UI kit, no Redux, no Playwright. Use the latest stable versions and their current setup docs (e.g. Tailwind's Vite plugin).
+React + TypeScript (strict) + Vite, Tailwind CSS, React Router, TanStack Query, React Hook Form for the quiz editor. Linting via the Vite template (the current `create-vite` template ships **oxlint**, not ESLint; `react/rules-of-hooks` and `react/exhaustive-deps` are enabled). No UI kit, no Redux, no Playwright. Use the latest stable versions and their current setup docs (e.g. Tailwind's Vite plugin).
 
 ## Structure
 ```
