@@ -1,19 +1,22 @@
 using TutoringQuiz.Api;
+using TutoringQuiz.Api.Auth;
 using TutoringQuiz.Api.ErrorHandling;
+using TutoringQuiz.Api.RateLimiting;
+using TutoringQuiz.Application;
+using TutoringQuiz.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton(TimeProvider.System);
-
-builder.Services
-    .AddControllers()
-    .AddJsonOptions(options => JsonDefaults.Apply(options.JsonSerializerOptions));
-builder.Services.ConfigureHttpJsonOptions(options => JsonDefaults.Apply(options.SerializerOptions));
-
-builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApiEndpoints();
+builder.Services.AddCookieAuth(builder.Configuration);
+builder.Services.AddLoginRateLimit(builder.Configuration);
 
 var app = builder.Build();
+
+await app.Services.InitializeDatabaseAsync();
 
 app.UseExceptionHandler();
 
@@ -21,11 +24,16 @@ app.UseExceptionHandler();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+
 app.MapControllers();
 
 // Unmatched /api/* routes get a ProblemDetails 404, never index.html.
-app.MapFallback("/api/{**path}", ApiNotFound.Handle);
-app.MapFallbackToFile("index.html");
+app.MapFallback("/api/{**path}", ApiNotFound.Handle).AllowAnonymous();
+app.MapFallbackToFile("index.html").AllowAnonymous();
 
 app.Run();
 

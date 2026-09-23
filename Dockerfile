@@ -31,7 +31,8 @@ COPY seed/ ./seed/
 ENV ASPNETCORE_URLS=http://+:8080 \
     ConnectionStrings__Default="Data Source=/app/data/tutoringquiz.db" \
     Seed__Enabled=true \
-    Seed__Path=/app/seed
+    Seed__Path=/app/seed \
+    DataProtection__KeysPath=/app/data/keys
 EXPOSE 8080
 USER $APP_UID
 ENTRYPOINT ["dotnet", "TutoringQuiz.Api.dll"]

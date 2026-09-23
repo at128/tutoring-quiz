@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using TutoringQuiz.Application.Common.Errors;
+using TutoringQuiz.Domain.Common;
 
 namespace TutoringQuiz.Api.ErrorHandling;
 
 /// <summary>
-/// Maps exceptions to RFC 9457 ProblemDetails. Unknown exceptions become a 500 without a stack trace
-/// outside Development.
+/// Maps exceptions to ProblemDetails: use-case and domain errors by their code; anything else becomes a 500
+/// without a stack trace outside Development.
 /// </summary>
 public sealed class ProblemDetailsExceptionHandler(
     IProblemDetailsService problemDetails,
@@ -14,16 +16,26 @@ public sealed class ProblemDetailsExceptionHandler(
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        logger.LogError(exception, "Unhandled exception for {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+        // The client went away (phone locked, tab closed): nobody is listening for a response.
+        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+            return true;
 
-        var problem = new ProblemDetails
+        var problem = exception switch
         {
-            Status = StatusCodes.Status500InternalServerError,
-            Title = "Something went wrong on the server",
-            Detail = environment.IsDevelopment() ? exception.ToString() : "Try again. If it keeps happening, tell your teacher.",
+            ValidationException e => ApiProblems.Create(e.Code, e.Message, e.Errors),
+            AppException e => ApiProblems.Create(e.Code, e.Message),
+            DomainException e => ApiProblems.Create(e.Code, e.Message, e.Errors),
+            BadHttpRequestException e => ApiProblems.Create(ErrorCodes.ValidationFailed, e.Message),
+            _ => null,
         };
 
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        if (problem is null)
+        {
+            logger.LogError(exception, "Unhandled exception for {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+            problem = ServerError(exception);
+        }
+
+        httpContext.Response.StatusCode = problem.Status!.Value;
         return await problemDetails.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
@@ -31,4 +43,11 @@ public sealed class ProblemDetailsExceptionHandler(
             Exception = exception,
         });
     }
+
+    private ProblemDetails ServerError(Exception exception) => new()
+    {
+        Status = StatusCodes.Status500InternalServerError,
+        Title = "Something went wrong on the server",
+        Detail = environment.IsDevelopment() ? exception.ToString() : "Try again. If it keeps happening, tell your teacher.",
+    };
 }
