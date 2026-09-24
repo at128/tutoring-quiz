@@ -11,6 +11,8 @@ export type Answer = {
   server: string | null
   /** Selection shown on screen. */
   desired: string | null
+  /** A failed request may have reached the server; require a successful write even if desired equals server. */
+  uncertain: boolean
   status: SaveStatus
 }
 
@@ -20,15 +22,15 @@ export type AnswerAction =
   | { type: 'choose'; questionId: string; optionId: string | null }
   | { type: 'saved'; questionId: string; sent: string | null; confirmed: string | null }
   | { type: 'failed'; questionId: string; sent: string | null }
-  | { type: 'rejected'; questionId: string }
+  | { type: 'rejected'; questionId: string; sent: string | null }
   | { type: 'sync'; questions: AttemptQuestion[] }
 
 export const fromServer = (questions: AttemptQuestion[]): Answers =>
   Object.fromEntries(
-    questions.map((q) => [q.id, { server: q.selectedOptionId, desired: q.selectedOptionId, status: 'saved' as const }]),
+    questions.map((q) => [q.id, { server: q.selectedOptionId, desired: q.selectedOptionId, uncertain: false, status: 'saved' as const }]),
   )
 
-export const isPending = (answer: Answer) => answer.desired !== answer.server
+export const isPending = (answer: Answer) => answer.uncertain || answer.desired !== answer.server
 
 export const pendingQuestionIds = (answers: Answers) => Object.keys(answers).filter((id) => isPending(answers[id]))
 
@@ -39,15 +41,15 @@ export const answeredCount = (answers: Answers) => Object.values(answers).filter
 
 export const hasFailures = (answers: Answers) => Object.values(answers).some((a) => a.status === 'failed')
 
-const statusFor = (server: string | null, desired: string | null, previous: SaveStatus): SaveStatus =>
-  server === desired ? 'saved' : previous === 'failed' ? 'failed' : 'saving'
+const statusFor = (server: string | null, desired: string | null, uncertain: boolean, previous: SaveStatus): SaveStatus =>
+  server === desired && !uncertain ? 'saved' : previous === 'failed' ? 'failed' : 'saving'
 
 export function answersReducer(state: Answers, action: AnswerAction): Answers {
   switch (action.type) {
     case 'choose': {
       const current = state[action.questionId]
       if (!current || current.desired === action.optionId) return state
-      const status: SaveStatus = current.server === action.optionId ? 'saved' : 'saving'
+      const status: SaveStatus = current.server === action.optionId && !current.uncertain ? 'saved' : 'saving'
       return { ...state, [action.questionId]: { ...current, desired: action.optionId, status } }
     }
 
@@ -55,21 +57,29 @@ export function answersReducer(state: Answers, action: AnswerAction): Answers {
       const current = state[action.questionId]
       if (!current) return state
       const status: SaveStatus = current.desired === action.confirmed ? 'saved' : 'saving'
-      return { ...state, [action.questionId]: { ...current, server: action.confirmed, status } }
+      return { ...state, [action.questionId]: { ...current, server: action.confirmed, uncertain: false, status } }
     }
 
     case 'failed': {
       const current = state[action.questionId]
-      // A newer choice is already queued: that one decides what to show.
-      if (!current || current.desired !== action.sent) return state
-      return { ...state, [action.questionId]: { ...current, status: 'failed' } }
+      if (!current) return state
+      // The request may have changed the server even when the student has since reverted the choice.
+      // A successful write of the latest desired value is the only safe way to resolve that ambiguity.
+      return { ...state, [action.questionId]: {
+        ...current, uncertain: true, status: current.desired === action.sent ? 'failed' : 'saving',
+      } }
     }
 
     case 'rejected': {
       // The server refused the value itself (not a connection problem): fall back to what it has.
       const current = state[action.questionId]
       if (!current) return state
-      return { ...state, [action.questionId]: { ...current, desired: current.server, status: 'saved' } }
+      // An invalid older selection must not erase a newer one the student just made.
+      if (current.desired !== action.sent) return state
+      return { ...state, [action.questionId]: {
+        ...current, desired: current.server,
+        status: statusFor(current.server, current.server, current.uncertain, current.status),
+      } }
     }
 
     case 'sync': {
@@ -79,7 +89,8 @@ export function answersReducer(state: Answers, action: AnswerAction): Answers {
         const current = state[question.id]
         const server = question.selectedOptionId
         const desired = current && isPending(current) ? current.desired : server
-        next[question.id] = { server, desired, status: statusFor(server, desired, current?.status ?? 'saved') }
+        const uncertain = current?.uncertain ?? false
+        next[question.id] = { server, desired, uncertain, status: statusFor(server, desired, uncertain, current?.status ?? 'saved') }
       }
       return next
     }

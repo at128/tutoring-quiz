@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using TutoringQuiz.Api.ErrorHandling;
@@ -28,6 +30,32 @@ public static class AuthSetup
                 options.Cookie.IsEssential = true;
                 options.SlidingExpiration = true;
                 options.ExpireTimeSpan = TimeSpan.FromHours(8);
+                options.Events.OnValidatePrincipal = async context =>
+                {
+                    var principal = context.Principal;
+                    var idClaim = principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                    var roleClaim = principal?.FindFirstValue(ClaimTypes.Role);
+                    var classClaim = principal?.FindFirstValue(AppClaimTypes.ClassRoomId);
+
+                    if (!Guid.TryParse(idClaim, out var userId) ||
+                        !Guid.TryParse(classClaim, out var claimedClassId) && classClaim is not null)
+                    {
+                        context.RejectPrincipal();
+                        return;
+                    }
+
+                    // A protected cookie can outlive its user or their authorization scope.
+                    // Recheck the authoritative role/class before any endpoint trusts those claims.
+                    var db = context.HttpContext.RequestServices.GetRequiredService<IAppDbContext>();
+                    var user = await db.Users.AsNoTracking()
+                        .Where(candidate => candidate.Id == userId)
+                        .Select(candidate => new { candidate.Role, candidate.ClassRoomId })
+                        .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+
+                    if (user is null || !string.Equals(roleClaim, user.Role.ToString(), StringComparison.Ordinal) ||
+                        user.ClassRoomId != (classClaim is null ? null : claimedClassId))
+                        context.RejectPrincipal();
+                };
                 options.Events.OnRedirectToLogin = context => ApiProblems.WriteAsync(
                     context.HttpContext, ApiProblems.Create(ErrorCodes.Unauthenticated, "Sign in to continue."));
                 options.Events.OnRedirectToAccessDenied = context => ApiProblems.WriteAsync(

@@ -6,6 +6,7 @@ import { PageShell } from '../../components/PageShell'
 import { EmptyState, ErrorState, Skeleton } from '../../components/States'
 import { formatLongDate, serverOffset } from '../../lib/time'
 import { useServerNow } from '../../lib/useServerNow'
+import { liveQuizList } from './liveQuiz'
 import { QuizCard } from './parts/QuizCard'
 import { groupByStatus, groupTitles } from './studentQuizCopy'
 
@@ -14,9 +15,9 @@ export function QuizListPage() {
   const user = useSignedInUser()
   const quizzes = useQuery({ queryKey: studentKeys.quizzes(), queryFn: ({ signal }) => listStudentQuizzes(signal) })
   const offset = quizzes.data ? serverOffset(quizzes.data.serverNow, quizzes.dataUpdatedAt) : 0
-  // Ticks every second while an attempt is running so its countdown stays live.
-  const running = quizzes.data?.quizzes.some((q) => q.status === 'InProgress') ?? false
-  const nowMs = useServerNow(offset, running ? 1000 : 30_000)
+  // Keep opening/closing transitions and an active attempt's countdown current without a page refresh.
+  const nowMs = useServerNow(offset, 1000)
+  const currentQuizzes = quizzes.data ? liveQuizList(quizzes.data.quizzes, nowMs) : null
   const className = user.classRoom ? `Class ${user.classRoom.name}` : ''
 
   return (
@@ -33,12 +34,12 @@ export function QuizListPage() {
         <ListSkeleton />
       ) : quizzes.isError ? (
         <ErrorState error={quizzes.error} onRetry={() => void quizzes.refetch()} title="Couldn’t load your quizzes" />
-      ) : quizzes.data.quizzes.length === 0 ? (
+      ) : currentQuizzes?.length === 0 ? (
         <EmptyState title="No quizzes yet">
           When a teacher publishes a quiz for {user.classRoom ? `class ${user.classRoom.name}` : 'your class'}, it appears here.
         </EmptyState>
       ) : (
-        groupByStatus(quizzes.data.quizzes).map((group) => (
+        groupByStatus(currentQuizzes ?? []).map((group) => (
           <section key={group.status} aria-labelledby={`group-${group.status}`} className="flex flex-col gap-2.5">
             <h2 id={`group-${group.status}`} className="flex items-baseline gap-2 text-body font-bold">
               {groupTitles[group.status]}

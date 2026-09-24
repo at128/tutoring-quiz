@@ -8,6 +8,7 @@ import { formatPercent, formatScore } from '../../../lib/format'
 import { formatDateTime, formatRelative, formatShortDate, formatTime, remainingMs } from '../../../lib/time'
 import { Timer } from '../takeQuiz/QuizHeader'
 import { displayPercentage, isShortOnTime, markingLine } from '../studentQuizCopy'
+import { shortTimeWarning } from '../liveQuiz'
 
 /** A quiz on the student's list (prototype: "Your quizzes"). */
 export function QuizCard({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: number; offsetMs: number }) {
@@ -93,7 +94,7 @@ function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs
         <>
           {isShortOnTime(quiz) && (
             <InfoLine icon="alert" tone="text-amber-ink font-semibold" align="start">
-              You’ll have only <Num>{quiz.effectiveMinutesIfStartedNow}</Num> minutes — the quiz closes at{' '}
+              You’ll have <Num>{shortTimeWarning(quiz.effectiveMinutesIfStartedNow)}</Num> — the quiz closes at{' '}
               <Num>{formatTime(quiz.closesAt)}</Num>.
             </InfoLine>
           )}

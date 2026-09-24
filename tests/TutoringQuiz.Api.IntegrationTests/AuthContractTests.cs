@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TutoringQuiz.Api.IntegrationTests.Infrastructure;
+using TutoringQuiz.Domain.Users;
 using TutoringQuiz.Infrastructure.Persistence;
 
 namespace TutoringQuiz.Api.IntegrationTests;
@@ -145,6 +147,55 @@ public sealed class AuthContractTests(TestAppFactory factory) : IClassFixture<Te
         using var staleMe = await student.GetAsync("/api/auth/me");
         Assert.Equal(HttpStatusCode.Unauthorized, staleMe.StatusCode);
         Assert.Equal("auth.unauthenticated", await CodeAsync(staleMe));
+        using var staleList = await student.GetAsync("/api/student/quizzes");
+        Assert.Equal(HttpStatusCode.Unauthorized, staleList.StatusCode);
+        Assert.Equal("auth.unauthenticated", await CodeAsync(staleList));
+    }
+
+    [Fact]
+    public async Task StudentClassChange_InvalidatesOldCookieBeforeQuizzesCanBeListed()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var student = await TestData.LoginAsync(factory, data.Student);
+        using (var before = await student.GetAsync("/api/student/quizzes"))
+            Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Users.Where(user => user.Id == data.Student.Id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(user => user.ClassRoomId, data.OtherClassRoom.Id));
+        }
+
+        using var stale = await student.GetAsync("/api/student/quizzes");
+        Assert.Equal(HttpStatusCode.Unauthorized, stale.StatusCode);
+        Assert.Equal("auth.unauthenticated", await CodeAsync(stale));
+
+        using var fresh = await TestData.LoginAsync(factory, data.Student);
+        using var freshList = await fresh.GetAsync("/api/student/quizzes");
+        Assert.Equal(HttpStatusCode.OK, freshList.StatusCode);
+    }
+
+    [Fact]
+    public async Task TeacherRoleChange_InvalidatesOldTeacherCookie()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var teacher = await TestData.LoginAsync(factory, data.Teacher);
+        using (var before = await teacher.GetAsync("/api/teacher/quizzes"))
+            Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Users.Where(user => user.Id == data.Teacher.Id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(user => user.Role, UserRole.Student)
+                    .SetProperty(user => user.ClassRoomId, data.ClassRoom.Id));
+        }
+
+        using var stale = await teacher.GetAsync("/api/teacher/quizzes");
+        Assert.Equal(HttpStatusCode.Unauthorized, stale.StatusCode);
+        Assert.Equal("auth.unauthenticated", await CodeAsync(stale));
     }
 
     private static async Task<string?> CodeAsync(HttpResponseMessage response)

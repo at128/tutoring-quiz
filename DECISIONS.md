@@ -50,7 +50,10 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
 - **Teacher results list students who haven't started or missed the quiz** — that's usually the teacher's first question.
 - **Data loaded from CSV files** — ready for the real spreadsheets.
 - **Login rate limiting**: cheap protection against guessing demo-style passwords. It limits **per IP + username** (10/min), plus a loose per-IP cap (100/min). A class signing in together from the centre's Wi-Fi shares one IP; a plain per-IP limit (the first plan) would have locked half of them out at the start of a quiz.
-- **Screens that don't go stale.** The teacher's list refetches at the next opening or closing time, so a quiz's state badge and order update while the page stays open; the state itself still comes from the server.
+- **Screens that don't go stale.** While a page stays open:
+  - on the student's list and start screen, a quiz becomes available or closes at its time, and the remaining time is recounted;
+  - the teacher's list refetches at the next opening or closing.
+  The server still decides whether a start is allowed. In the last minute, the warning says "less than 1 minute", not "0 minutes".
 - **The editor never shifts a time silently.** Impossible dates (30 Feb) and times skipped by a daylight-saving jump are rejected. Saving a quiz keeps its stored times to the second until the teacher changes them.
 - **A live demo that updates itself**: https://quiz.just-atta.site. The server pulls each commit of `main` whose CI passed, builds it and swaps it in, rolling back if the health check fails. It publishes no new port, and nothing about the server (keys, addresses, secrets) is stored on GitHub. See `deploy/README.md`. This is reviewer convenience; `docker compose up --build` stays the way to run the project.
 - No stretch items (S1–S5 in `PLAN.md`) were built.

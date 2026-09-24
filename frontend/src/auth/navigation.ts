@@ -12,7 +12,9 @@ export function safeReturnTo(value: string | null): string | null {
 export function afterLoginPath(role: Role, returnTo: string | null): string {
   const target = safeReturnTo(returnTo)
   const home = roleHome(role)
-  return target && (target === '/' || target.startsWith(home)) ? target : home
+  return target && (target === '/' || target === home || target.startsWith(`${home}/`) || target.startsWith(`${home}?`))
+    ? target
+    : home
 }
 
 export const loginPath = (returnTo: string) =>

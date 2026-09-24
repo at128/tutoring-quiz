@@ -30,3 +30,10 @@ Did: implemented teacher classroom/list/get/create/update/publish/unpublish/dele
 Checked: `dotnet test TutoringQuiz.sln -c Release` passed 60/60 (20 Domain, 40 SQLite HTTP integration); repeated the edit/start, answer/save and answer/submit races five times each without failure. A fresh seeded test database migrated and produced 60 students, 4 teachers, 5 quizzes and demo attempts; both roles logged in and read their data. `dotnet publish` for the API succeeded in Release.
 Unsure about / assumptions: no frontend, browser or full Docker-image acceptance was claimed in this backend milestone. The API contract was not changed. Treating unpublished drafts as `NotStarted`, not `Missed`, in teacher results is a result-policy interpretation consistent with their `Draft` state.
 Human changed or rejected: Atta requested backend-only work and said the frontend designed in Claude would be transferred later.
+
+### Backend/frontend handler audit — 2026-09-24
+Asked to: audit every backend handler and frontend workflow with edge-case tests, without disrupting Claude's concurrent F3 UI work.
+Did: reviewed all 17 Application handlers and current frontend logic; added 26-request teacher validation boundary coverage, API-client and auth-navigation tests, and a live student quiz-status projection with boundary/order tests. A failing role-prefix redirect test led to a narrow navigation fix. Left Claude's dirty F3 files untouched and recorded remaining F3 findings in `docs/reviews/backend-frontend-handler-audit-codex-review.md`.
+Checked: 71 backend tests passed, 47 frontend tests passed at the last full frontend run, frontend typecheck/lint/build passed. Docker and real-browser journeys were not run.
+Unsure about / assumptions: teacher F3 files were still changing during inspection, so their final implementation needs a fresh pass. No API contract change was made.
+Human changed or rejected: no additional direction during this audit.
