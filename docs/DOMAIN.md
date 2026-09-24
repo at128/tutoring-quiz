@@ -29,7 +29,9 @@ Everything in this file is enforced on the server. The frontend may *display* th
 ## Editing rules (fairness)
 - Only the owning teacher can see or change a quiz (others get 404).
 - While **not locked**: everything can change (full replace of questions/options on save), including publish/unpublish and delete.
-- Once **locked**: questions, options, points, penalty, duration and classes are frozen (409 `quiz.locked`). Unpublish and delete → 409 `quiz.has_attempts`. (Stretch: extending `ClosesAtUtc` later is allowed.)
+- Once **locked** (attempts exist and `now <= ClosesAtUtc`): nothing can change (409 `quiz.locked`). Unpublish and delete → 409 `quiz.has_attempts` (also after the close).
+- **After the close** (`now > ClosesAtUtc`, attempts exist; added 24 Sep): the owner may change title, description, questions, options, the correct option, points, the marking and score visibility. `OpensAt`, `ClosesAt`, duration and classes must stay as stored (409 `quiz.locked` otherwise). The same transaction and save **regrade every attempt** (`QuizAttempt.Regrade`): an in-progress attempt (necessarily past its deadline) is finalized as Expired first; status, times and selected options never change; score, max and counts are recomputed; `RegradedAtUtc` records a changed result.
+- **Identity on save:** questions and options sent with their `id` are updated in place. One without a known id is new. A current one that is not sent is deleted when the quiz has no attempts, and only marked `RemovedAtUtc` when it has (its answers stay readable; removed items are never shown to students or scored). An answer whose chosen option was removed counts as unanswered.
 
 ## Attempt timing
 ```
@@ -79,11 +81,11 @@ Order of checks:
 `AttemptFinalizer.FinalizeIfExpired(attempt, now)`: if `InProgress` and `now > DeadlineUtc` → compute score from saved answers, set `Expired`, `FinalizedAtUtc = DeadlineUtc`. It is called by: start, get attempt, save answer, submit, student quiz list, teacher results. So an abandoned attempt is finalized the next time anyone looks at it, and the stored result is identical to what a job would have produced. Closing the browser is **not** a submission.
 
 ## Scoring
-Per question (`p` = question points, `k` = WrongAnswerPenaltyPercent):
+Per question (`p` = question points; the quiz charges either `k` = WrongAnswerPenaltyPercent, or a fixed `f` = WrongAnswerPenaltyPoints, then `k` = 0):
 | Answer | Points |
 |---|---|
 | correct | `+p` |
-| wrong | `−p × k / 100` |
+| wrong | `−p × k / 100`, or `−min(f, p)` with a fixed mark |
 | unanswered (no row or null option) | `0` |
 
 `Score = Σ` of the above, rounded to **2 decimals** (`MidpointRounding.AwayFromZero`). **Never below 0** (changed on 24 Sep; it used to be unclamped): `Score = max(0, rounded Σ)`. `MaxScore = Σ p`. `Percentage = Score / MaxScore × 100`, rounded to 1 decimal.
@@ -91,9 +93,10 @@ Per question (`p` = question points, `k` = WrongAnswerPenaltyPercent):
 Worked examples (penalty 25 %, questions worth 4, 2, 2, 1 → max 9):
 - correct, wrong, unanswered, wrong → `4 − 0.5 + 0 − 0.25 = 3.25` → 36.1 %
 - same answers with penalty 0 % → `4` → 44.4 %
-- all four wrong with penalty 50 % → `−2 − 1 − 1 − 0.5 = −4.5` → −50.0 %
+- all four wrong with penalty 50 % → `−2 − 1 − 1 − 0.5 = −4.5` → **0** (the floor), 0 %
+- same answers as the first example with a fixed mark of 1.5 → `4 − 1.5 − 1 = 1.5` (the 1-point question loses only 1)
 
-`QuizScoring.Calculate(questions, answers, penaltyPercent)` is a pure function in Domain and is the **only** place scores are computed (handlers, finalizer and the seeder all call it).
+`QuizScoring.Explain(questions, answers, penalty)` is a pure function in Domain and the **only** place scores are computed: it returns each question's earned points, deduction and contribution plus the total. Finalization, regrading, the seeder and the teacher's answer view all use it, so a stored result always equals the sum shown question by question (floored at 0).
 
 ## Student-facing statuses (quiz list)
 | Status | Condition |
@@ -110,7 +113,7 @@ Summary: assigned, started, finalized, average / highest / lowest score and aver
 
 ## What a student may see
 - During the attempt: question text, points, options (id + text), their own selections, deadline, server time. **Never** `IsCorrect`.
-- After finalization: score, max, percentage, correct/wrong/unanswered counts, status.
+- After finalization: score, max, percentage, correct/wrong/unanswered counts, status, **unless the teacher hides scores**: then every student response carries `scoreVisible: false` and no graded value at all (read live from the quiz, never copied into the attempt). The teacher always sees everything.
 - Correct answers per question: only once the quiz has **closed** (stretch S2), so answers don't leak to classmates who haven't taken it yet.
 
 ## Concurrency

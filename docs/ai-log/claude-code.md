@@ -76,3 +76,16 @@ Did: the total is floored at 0 in `QuizScoring`, with a data migration for store
 Checked: `dotnet test` 48 + 96; Vitest 135; `run.cmd` start/stop/reset/bad option on Windows and `run.sh` in Git Bash; ShellCheck clean; CI green.
 Unsure about / assumptions: `run.sh` was not run on macOS or Linux (only Git Bash); it avoids bash 4 features.
 Human changed or rejected: Atta reversed the earlier "negative totals are allowed" decision.
+
+### Teacher controls and doc reconciliation (PR #15) — 2026-09-24 afternoon
+Asked to: let the teacher charge a fixed mark instead of a percentage; then (Atta's written spec) reconcile every doc with the code, let the owner edit a quiz after it closes with a complete, atomic server-side regrade that keeps students' answers, show teachers each student's answers, and let teachers hide or show scores with the API enforcing it; tests written as we go and run once at the end.
+Did:
+- **Fixed mark:** `WrongAnswerPenalty` (percent or points, capped at the question's points), in validation, scoring, views, the editor (None / Percentage / Fixed mark) and every screen that describes marking.
+- **Identity-preserving edits:** the editor sends question/option ids; `Quiz.Update` updates matches in place, adds new ones, and marks removed ones (`RemovedAtUtc`) when the quiz has attempts (hard delete otherwise), because answers point at questions/options with a Restrict foreign key.
+- **Edit after close + regrade:** locked while `now <= ClosesAt`; after it, content and marking can change but dates, duration and classes can't; `UpdateTeacherQuizHandler` finalizes stragglers and calls `QuizAttempt.Regrade` for every attempt in the same transaction and `SaveChanges`. One scoring function (`QuizScoring.Explain`) serves finalization, regrading and the new teacher answer view, so they can't disagree.
+- **Score visibility:** `Quiz.ScoresVisibleToStudents` (existing quizzes default to visible in the migration; no model default, because an EF bool default would swallow an explicit false); the student result, submit, attempt view and quiz list send nulls while hidden; `PUT .../score-visibility` works in every state.
+- **Frontend:** the answer view page, the visibility control on results and the locked view, hidden-score states for students, all texts in both languages. **Docs:** phase-1 reconciliation, then API/DOMAIN/DECISIONS/TESTING/AI_USAGE/README for the final behaviour.
+- **Coordination:** when Codex came back at 15:25, it took the new backend and browser tests (new files only, specified in `AGENT_CHANNEL.md`); I kept the production code, docs and the final verification.
+Checked: see the PR and the final verification (run once at the end, as asked).
+Unsure about / assumptions: an answer whose chosen option was later removed counts as unanswered (documented in DECISIONS); the post-close lock on dates, duration and classes is my safety decision, also documented.
+Human changed or rejected: Atta chose one fixed amount per quiz, capped at the question's points and explained to the teacher; asked Codex and Claude to split the remaining work.

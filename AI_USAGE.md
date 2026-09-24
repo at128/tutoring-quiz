@@ -30,6 +30,7 @@ This file is kept factual. It is written from the Git history, the pull requests
 - I asked for the **whole interface in Arabic** (not only Arabic content), following the phone’s language with a switch, Western digits 0-9 and the month names يناير، فبراير.
 - After the M4 review I **accepted all four findings**, and decided that text made only of tatweel, diacritics or invisible marks counts as empty.
 - I decided that **a quiz total never goes below 0**, and that a teacher may charge a wrong answer either a percentage or **a fixed mark** (one amount per quiz, never more than the question is worth).
+- In the last hours I asked for three more teacher features: **correcting a quiz after it closes** with every result recalculated atomically from the students' own answers, **seeing each student's answers**, and **hiding or showing scores**, enforced by the API. When Codex came back I had the agents split the work: Claude Code built the features, Codex wrote their new backend and browser tests.
 
 ## How the work was actually organised
 See `docs/WORKFLOW.md` → "What actually happened". In short:
@@ -69,6 +70,7 @@ See `docs/WORKFLOW.md` → "What actually happened". In short:
 | M5 | Claude Code | live demo (PR #8), per-IP+username login limit (PR #9), README/DECISIONS/AI_USAGE/workflow drafts, clean-machine Docker run | approved the login-limit change, forbade SSH on GitHub |
 | Arabic UI | Claude Code | whole interface in Arabic and English, right-to-left throughout, Arabic plurals and dates (PR #12) | asked for it; chose device language + switch, Western digits, Arabic month names |
 | Final changes | Claude Code | browser E2E in CI (PR #13); live-demo backups, score floor at 0, run scripts (PR #14) | asked for E2E in CI, no negative totals, a way to run it anywhere |
+| Teacher controls | Claude Code (features), Codex (their new tests) | fixed-mark marking; editing a closed quiz with identity-preserving saves and an atomic regrade; the teacher answer view; score visibility enforced by the API; docs reconciled with the code (PR #15) | specified all three features; chose one fixed amount per quiz, capped at the question's points |
 
 ## Where AI was wrong or I overruled it
 - **The kickoff draft proposed a 15-second post-deadline answer grace.** I removed it: it effectively extends quiz time, and the server can't tell network delay from a genuinely late answer.
