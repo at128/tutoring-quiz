@@ -5,7 +5,7 @@ import { teacherListRefreshDelay } from './teacherListRefresh'
 const NOW = Date.parse('2026-09-24T10:00:00Z')
 const quiz = (state: TeacherQuizSummary['state'], opensAt: string, closesAt: string): TeacherQuizSummary => ({
   id: state, title: state, classRooms: [], opensAt, closesAt,
-  durationMinutes: 20, wrongAnswerPenaltyPercent: 0, isPublished: state !== 'Draft',
+  durationMinutes: 20, wrongAnswerPenaltyPercent: 0, wrongAnswerPenaltyPoints: null, isPublished: state !== 'Draft',
   state, isLocked: false, questionCount: 1, maxScore: 4,
   assignedStudentCount: 2, startedCount: 0, finalizedCount: 0,
 })

@@ -13,6 +13,7 @@ import { DoubleRule } from '../../components/Sheet'
 import { ErrorState, NotAvailableState, Skeleton } from '../../components/States'
 import { formatPercent, formatScore } from '../../lib/format'
 import { useLanguage } from '../../i18n/LanguageContext'
+import { markingOf } from '../../lib/marking'
 import { formatDateTime } from '../../lib/time'
 import { scoringExplanation } from './resultCopy'
 
@@ -56,7 +57,7 @@ export function ResultPage() {
 function ResultSheet({ result }: { result: AttemptResult }) {
   const { t, lang } = useLanguage()
   const expired = result.status === 'Expired'
-  const negative = result.score < 0
+  const marking = markingOf(result)
 
   return (
     <>
@@ -83,38 +84,15 @@ function ResultSheet({ result }: { result: AttemptResult }) {
 
         <DoubleRule />
 
-        <div className="flex flex-col items-center gap-1 py-2">
-          <span className="text-small text-muted">{t.result.yourScore}</span>
-          <div dir="ltr" className="flex items-baseline gap-2 tabular-nums">
-            <span className={`text-[52px] leading-[1.1] font-bold ${negative ? 'text-red' : 'text-ink'}`}>{formatScore(result.score)}</span>
-            <span className="text-[24px] font-medium text-muted">/ {result.maxScore}</span>
+        {result.scoreVisible ? (
+          <ScoreDetails result={result} marking={marking} />
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-3 text-center">
+            <Icon name="eye" className="size-7 text-muted" />
+            <h2 className="text-body font-bold">{t.result.scoreHiddenTitle}</h2>
+            <p className="max-w-[34ch] text-small leading-[1.55] text-ink-2">{t.result.scoreHiddenBody}</p>
           </div>
-          <span className="text-card font-semibold text-ink-2">
-            <Num>{formatPercent(result.percentage)}</Num>
-          </span>
-        </div>
-
-        <div className="flex rounded-option border border-rule">
-          <Count icon="check" tone="text-green" value={result.correctCount} label={t.result.correct} />
-          <Count icon="x" tone="text-red" value={result.wrongCount} label={t.result.wrong} />
-          <Count icon="minusCircle" tone="text-muted" value={result.unansweredCount} label={t.result.unanswered} />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <h2 className="text-body font-bold">{t.result.howScored}</h2>
-          <p className="text-small leading-[1.55] text-ink-2">{scoringExplanation(result, t)}</p>
-          <dl className="flex flex-col">
-            <Row label={t.result.correct}>
-              <Num>{result.correctCount}</Num> {t.result.fullPoints}
-            </Row>
-            <Row label={t.result.wrong}>
-              <Num>{result.wrongCount}</Num> {t.result.wrongPenalty(result.wrongAnswerPenaltyPercent)}
-            </Row>
-            <Row label={t.result.unanswered}>
-              <Num>{result.unansweredCount}</Num> {t.result.zeroPoints}
-            </Row>
-          </dl>
-        </div>
+        )}
       </section>
 
       {result.review === null && (
@@ -129,6 +107,49 @@ function ResultSheet({ result }: { result: AttemptResult }) {
       <ButtonLink to="/student" size="lg" className="w-full" replace>
         {t.result.back}
       </ButtonLink>
+    </>
+  )
+}
+
+/** Only rendered when the teacher shows scores; otherwise the server sends none of these values. */
+function ScoreDetails({ result, marking }: { result: AttemptResult; marking: ReturnType<typeof markingOf> }) {
+  const { t } = useLanguage()
+  return (
+    <>
+        <div className="flex flex-col items-center gap-1 py-2">
+          <span className="text-small text-muted">{t.result.yourScore}</span>
+          <div dir="ltr" className="flex items-baseline gap-2 tabular-nums">
+            <span className="text-[52px] leading-[1.1] font-bold text-ink">{formatScore(result.score ?? 0)}</span>
+            <span className="text-[24px] font-medium text-muted">/ {result.maxScore}</span>
+          </div>
+          <span className="text-card font-semibold text-ink-2">
+            <Num>{formatPercent(result.percentage ?? 0)}</Num>
+          </span>
+          {result.regradedAt && <span className="pt-1 text-meta text-muted">{t.result.regradedNote}</span>}
+        </div>
+
+        <div className="flex rounded-option border border-rule">
+          <Count icon="check" tone="text-green" value={result.correctCount ?? 0} label={t.result.correct} />
+          <Count icon="x" tone="text-red" value={result.wrongCount ?? 0} label={t.result.wrong} />
+          <Count icon="minusCircle" tone="text-muted" value={result.unansweredCount ?? 0} label={t.result.unanswered} />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-body font-bold">{t.result.howScored}</h2>
+          <p className="text-small leading-[1.55] text-ink-2">{scoringExplanation(result, t)}</p>
+          <dl className="flex flex-col">
+            <Row label={t.result.correct}>
+              <Num>{result.correctCount}</Num> {t.result.fullPoints}
+            </Row>
+            <Row label={t.result.wrong}>
+              <Num>{result.wrongCount}</Num>{' '}
+              {marking.kind === 'points' ? t.result.wrongPenaltyPoints(marking.points) : t.result.wrongPenalty(result.wrongAnswerPenaltyPercent)}
+            </Row>
+            <Row label={t.result.unanswered}>
+              <Num>{result.unansweredCount}</Num> {t.result.zeroPoints}
+            </Row>
+          </dl>
+        </div>
     </>
   )
 }

@@ -230,6 +230,7 @@ function QuizRunner({ initial }: { initial: TimedAttempt }) {
         open={dialog === 'confirm' && !timeUp}
         unanswered={unanswered}
         penaltyPercent={view.wrongAnswerPenaltyPercent}
+        penaltyPoints={view.wrongAnswerPenaltyPoints}
         pendingCount={autosave.pendingCount}
         submitting={phase === 'submitting'}
         // Until the submit request goes out (answers still being sent) the student may change their mind.

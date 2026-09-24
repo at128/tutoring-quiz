@@ -9,7 +9,7 @@ const opensAt = '2026-09-24T10:00:00Z'
 const closesAt = '2026-09-24T10:08:00Z'
 const card = (status: StudentQuizCard['status']): StudentQuizCard => ({
   id: 'quiz', title: 'Quiz', description: null, teacherName: 'Teacher', opensAt, closesAt,
-  durationMinutes: 20, questionCount: 1, maxScore: 4, wrongAnswerPenaltyPercent: 25,
+  durationMinutes: 20, questionCount: 1, maxScore: 4, wrongAnswerPenaltyPercent: 25, wrongAnswerPenaltyPoints: null,
   status, effectiveMinutesIfStartedNow: null, attempt: null,
 })
 

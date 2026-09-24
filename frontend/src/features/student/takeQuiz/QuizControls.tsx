@@ -166,6 +166,7 @@ export function SubmitDialog({
   open,
   unanswered,
   penaltyPercent,
+  penaltyPoints,
   pendingCount,
   submitting,
   canCancel,
@@ -175,6 +176,8 @@ export function SubmitDialog({
   open: boolean
   unanswered: number[]
   penaltyPercent: number
+  /** A fixed mark per wrong answer instead of a percentage (then penaltyPercent is 0). */
+  penaltyPoints: number | null
   pendingCount: number
   submitting: boolean
   /** False once the submit request itself is on its way. */
@@ -212,7 +215,13 @@ export function SubmitDialog({
         )}
 
         <ul className="flex flex-col gap-1.5 text-small text-ink-2">
-          <li>{penaltyPercent > 0 ? t.take.penaltyRule(penaltyPercent) : t.take.noPenalty}</li>
+          <li>
+            {penaltyPoints != null
+              ? t.take.penaltyRulePoints(penaltyPoints)
+              : penaltyPercent > 0
+                ? t.take.penaltyRule(penaltyPercent)
+                : t.take.noPenalty}
+          </li>
           <li>{t.take.final}</li>
         </ul>
 

@@ -248,7 +248,10 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
     questions: values.questions.length,
     points: values.questions.reduce((sum, q) => sum + (Number.parseInt(q.points, 10) || 0), 0),
     minutes: values.durationMinutes || '—',
-    marking: penalty === null ? '—' : penalty === 0 ? t.editor.markingNone : `${penalty}%`,
+    marking:
+      values.penalty === 'points'
+        ? t.editor.factMarkingPoints(values.penaltyPoints?.trim() || '—')
+        : penalty === null ? '—' : penalty === 0 ? t.editor.markingNone : `${penalty}%`,
   }
 
   return (
@@ -276,6 +279,11 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
       </div>
 
       <NoticeBanner notice={notice} view={view} onReload={() => void reload()} />
+      {view?.hasAttempts && (
+        <Banner kind="info" title={t.editor.regradeTitle}>
+          {t.editor.regradeBody}
+        </Banner>
+      )}
       {lines.length > 0 && (
         <div className="lg:hidden">
           <ProblemsBanner lines={lines} title={attempt === 'publish' ? t.editor.cantPublish : undefined} />
@@ -284,7 +292,7 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
         <form noValidate onSubmit={(event) => event.preventDefault()} className="flex min-w-0 flex-col gap-6">
-          <DetailsSection form={form} classRooms={classRooms} problems={problems} />
+          <DetailsSection form={form} classRooms={classRooms} problems={problems} scheduleLocked={view?.hasAttempts === true} />
           <QuestionsSection form={form} problems={problems} />
           {view && (
             <div className="lg:hidden">

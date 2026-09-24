@@ -10,16 +10,25 @@ import { localTimeZoneLabel, penaltyPercent } from './editorForm'
 import { FieldProblems, Hint, Label, TextArea, TextInput } from './fields'
 import { withWesternDigits } from './westernDigitsField'
 
-const penaltyOptions = (m: Messages['editor']): { value: PenaltyChoice; label: string }[] => [
-  { value: '0', label: m.penaltyNone },
+type MarkingKind = 'none' | 'percent' | 'points'
+
+const kindOptions = (m: Messages['editor']): { value: MarkingKind; label: string }[] => [
+  { value: 'none', label: m.penaltyNone },
+  { value: 'percent', label: m.penaltyPercentKind },
+  { value: 'points', label: m.penaltyPointsKind },
+]
+
+const percentOptions = (m: Messages['editor']): { value: PenaltyChoice; label: string }[] => [
   { value: '25', label: '25%' },
   { value: '33', label: '33%' },
   { value: '50', label: '50%' },
   { value: 'custom', label: m.penaltyCustom },
 ]
 
-const markingHint = (percent: number | null, m: Messages['editor']) =>
-  percent === null || percent === 0 ? m.markingHintNone : m.markingHint(percent)
+const kindOf = (penalty: PenaltyChoice): MarkingKind => (penalty === '0' ? 'none' : penalty === 'points' ? 'points' : 'percent')
+
+const markingHint = (penalty: PenaltyChoice, percent: number | null, m: Messages['editor']) =>
+  penalty === 'points' ? m.markingHintPoints : percent === null || percent === 0 ? m.markingHintNone : m.markingHint(percent)
 
 /** The class list as the page has it: loaded, still loading, or failed (with a way to try again). */
 export type ClassRoomsState = { data: TeacherClassRoom[] | undefined; failed: boolean; retry: () => void }
@@ -28,16 +37,25 @@ type Props = {
   form: UseFormReturn<EditorValues>
   classRooms: ClassRoomsState
   problems: Problems
+  /** Students have taken this (closed) quiz: its classes, dates and time limit can't change any more. */
+  scheduleLocked?: boolean
 }
 
 /** Title, description, classes, window, time limit and negative marking (prototype: "Edit quiz" → Details). */
-export function DetailsSection({ form, classRooms, problems }: Props) {
+export function DetailsSection({ form, classRooms, problems, scheduleLocked = false }: Props) {
   const { t } = useLanguage()
   const m = t.editor
   const { register, watch, setValue } = form
   const selected = watch('classRoomIds')
   const penalty = watch('penalty')
   const percent = penaltyPercent({ penalty, customPenalty: watch('customPenalty') })
+  const scoresVisible = watch('scoresVisible') ?? true
+  const markingProblems = problems.wrongAnswerPenaltyPercent ?? problems.wrongAnswerPenaltyPoints
+
+  function chooseKind(kind: MarkingKind) {
+    const next: PenaltyChoice = kind === 'none' ? '0' : kind === 'points' ? 'points' : '25'
+    if (kindOf(penalty) !== kind) setValue('penalty', next, { shouldDirty: true })
+  }
 
   function toggleClass(id: string, checked: boolean) {
     const next = checked ? [...selected, id] : selected.filter((c) => c !== id)
@@ -47,6 +65,7 @@ export function DetailsSection({ form, classRooms, problems }: Props) {
   return (
     <section className="flex flex-col gap-[18px] rounded-sheet border border-rule bg-paper p-5">
       <h2 className="text-card font-bold">{m.details}</h2>
+      {scheduleLocked && <Hint>{m.scheduleLockedNote}</Hint>}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="title">{m.title}</Label>
@@ -76,6 +95,7 @@ export function DetailsSection({ form, classRooms, problems }: Props) {
                   <input
                     type="checkbox"
                     checked={checked}
+                    disabled={scheduleLocked}
                     onChange={(event) => toggleClass(classRoom.id, event.target.checked)}
                     className="size-5 accent-ink"
                   />
@@ -101,12 +121,12 @@ export function DetailsSection({ form, classRooms, problems }: Props) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="opensAt">{m.opens}</Label>
-          <TextInput id="opensAt" type="datetime-local" dir="ltr" lang="en" invalid={!!problems.opensAt} {...register('opensAt')} />
+          <TextInput id="opensAt" type="datetime-local" dir="ltr" lang="en" readOnly={scheduleLocked} invalid={!!problems.opensAt} {...register('opensAt')} />
           {problems.opensAt ? <FieldProblems messages={problems.opensAt} /> : <Hint>{localTimeZoneLabel(m)}</Hint>}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="closesAt">{m.closes}</Label>
-          <TextInput id="closesAt" type="datetime-local" dir="ltr" lang="en" invalid={!!problems.closesAt} {...register('closesAt')} />
+          <TextInput id="closesAt" type="datetime-local" dir="ltr" lang="en" readOnly={scheduleLocked} invalid={!!problems.closesAt} {...register('closesAt')} />
           {problems.closesAt ? <FieldProblems messages={problems.closesAt} /> : <Hint>{m.closesHint}</Hint>}
         </div>
         <div className="flex flex-col gap-1.5">
@@ -117,6 +137,7 @@ export function DetailsSection({ form, classRooms, problems }: Props) {
               type="text"
               inputMode="numeric"
               autoComplete="off"
+              readOnly={scheduleLocked}
               invalid={!!problems.durationMinutes}
               className="w-[110px]"
               {...withWesternDigits(register('durationMinutes'))}
@@ -135,11 +156,35 @@ export function DetailsSection({ form, classRooms, problems }: Props) {
         <legend className="mb-1.5 text-small font-semibold">{m.negativeMarking}</legend>
         <Segmented
           label={m.negativeMarking}
-          options={penaltyOptions(m)}
-          value={penalty}
-          onChange={(value) => setValue('penalty', value, { shouldDirty: true })}
+          options={kindOptions(m)}
+          value={kindOf(penalty)}
+          onChange={chooseKind}
           className="-me-1 sm:me-0 [&_button]:px-2 sm:[&_button]:px-3"
         />
+        {kindOf(penalty) === 'percent' && (
+          <Segmented
+            label={m.percentAria}
+            options={percentOptions(m)}
+            value={penalty}
+            onChange={(value) => setValue('penalty', value, { shouldDirty: true })}
+            className="-me-1 pt-1 sm:me-0 [&_button]:px-2 sm:[&_button]:px-3"
+          />
+        )}
+        {penalty === 'points' && (
+          <div className="flex items-center gap-2.5 pt-1">
+            <TextInput
+              aria-label={m.pointsAria}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              compact
+              invalid={!!problems.wrongAnswerPenaltyPoints}
+              className="w-[96px]"
+              {...withWesternDigits(register('penaltyPoints'))}
+            />
+            <span className="text-[15px] text-ink-2">{m.pointsUnit}</span>
+          </div>
+        )}
         {penalty === 'custom' && (
           <div className="flex items-center gap-2.5 pt-1">
             <TextInput
@@ -155,8 +200,16 @@ export function DetailsSection({ form, classRooms, problems }: Props) {
             <span className="text-[15px] text-ink-2">{m.customUnit}</span>
           </div>
         )}
-        {problems.wrongAnswerPenaltyPercent ? <FieldProblems messages={problems.wrongAnswerPenaltyPercent} /> : <Hint>{markingHint(percent, m)}</Hint>}
+        {markingProblems ? <FieldProblems messages={markingProblems} /> : <Hint>{markingHint(penalty, percent, m)}</Hint>}
       </fieldset>
+
+      <label className="flex min-h-11 cursor-pointer items-start gap-2.5">
+        <input type="checkbox" className="mt-0.5 size-5 flex-none accent-ink" {...register('scoresVisible')} />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-[15px] font-semibold text-ink">{m.showScores}</span>
+          <span className="text-small leading-normal text-muted">{scoresVisible ? m.showScoresOn : m.showScoresOff}</span>
+        </span>
+      </label>
     </section>
   )
 }

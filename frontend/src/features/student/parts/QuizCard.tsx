@@ -33,7 +33,11 @@ export function QuizCard({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; now
       <FactsRow quiz={quiz} inset={inProgress ? 15 : 16} />
 
       <InfoLine icon="info">
-        {quiz.wrongAnswerPenaltyPercent === 0 ? t.student.markingNone : t.student.markingLine(quiz.wrongAnswerPenaltyPercent)}
+        {quiz.wrongAnswerPenaltyPoints != null
+          ? t.student.markingLinePoints(quiz.wrongAnswerPenaltyPoints)
+          : quiz.wrongAnswerPenaltyPercent === 0
+            ? t.student.markingNone
+            : t.student.markingLine(quiz.wrongAnswerPenaltyPercent)}
       </InfoLine>
 
       <StatusDetails quiz={quiz} nowMs={nowMs} offsetMs={offsetMs} />
@@ -122,15 +126,19 @@ function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs
         <>
           <div className="flex items-baseline justify-between rounded-option bg-desk px-3 py-2.5">
             <span className="text-small text-ink-2">{t.student.yourScore}</span>
-            <span className={`text-card font-bold ${score < 0 ? 'text-red' : ''}`}>
-              <Num>
-                {formatScore(score)} / {attempt.maxScore}
-              </Num>
-              <span className="text-small font-medium text-muted">
-                {' · '}
-                <Num>{formatPercent(displayPercentage(score, attempt.maxScore))}</Num>
+            {attempt.scoreVisible ? (
+              <span className="text-card font-bold">
+                <Num>
+                  {formatScore(score)} / {attempt.maxScore}
+                </Num>
+                <span className="text-small font-medium text-muted">
+                  {' · '}
+                  <Num>{formatPercent(displayPercentage(score, attempt.maxScore))}</Num>
+                </span>
               </span>
-            </span>
+            ) : (
+              <span className="text-small font-semibold text-ink-2">{t.student.scoreHidden}</span>
+            )}
           </div>
           <InfoLine icon={attempt.status === 'Expired' ? 'hourglass' : 'check'} align="start">
             {attempt.status === 'Expired'
