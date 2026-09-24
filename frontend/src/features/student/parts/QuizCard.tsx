@@ -6,12 +6,13 @@ import { ButtonLink } from '../../../components/Button'
 import { Icon, type IconName } from '../../../components/Icon'
 import { formatPercent, formatScore } from '../../../lib/format'
 import { formatDateTime, formatRelative, formatShortDate, formatTime, remainingMs } from '../../../lib/time'
+import { useLanguage } from '../../../i18n/LanguageContext'
 import { Timer } from '../takeQuiz/QuizHeader'
-import { displayPercentage, isShortOnTime, markingLine } from '../studentQuizCopy'
-import { shortTimeWarning } from '../liveQuiz'
+import { displayPercentage, isShortOnTime } from '../studentQuizCopy'
 
 /** A quiz on the student's list (prototype: "Your quizzes"). */
 export function QuizCard({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: number; offsetMs: number }) {
+  const { t } = useLanguage()
   const inProgress = quiz.status === 'InProgress'
 
   return (
@@ -31,7 +32,9 @@ export function QuizCard({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; now
 
       <FactsRow quiz={quiz} inset={inProgress ? 15 : 16} />
 
-      <InfoLine icon="info">{markingLine(quiz.wrongAnswerPenaltyPercent)}</InfoLine>
+      <InfoLine icon="info">
+        {quiz.wrongAnswerPenaltyPercent === 0 ? t.student.markingNone : t.student.markingLine(quiz.wrongAnswerPenaltyPercent)}
+      </InfoLine>
 
       <StatusDetails quiz={quiz} nowMs={nowMs} offsetMs={offsetMs} />
     </article>
@@ -40,18 +43,17 @@ export function QuizCard({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; now
 
 /** Questions · points · time limit, ruled edge to edge across the card. */
 export function FactsRow({ quiz, inset }: { quiz: StudentQuizCard; inset: 15 | 16 }) {
+  const { t } = useLanguage()
   const cells = [
-    { value: `${quiz.questionCount}`, label: 'questions' },
-    { value: `${quiz.maxScore}`, label: 'points' },
-    { value: `${quiz.durationMinutes} min`, label: 'time limit' },
+    { value: `${quiz.questionCount}`, label: t.student.factQuestions },
+    { value: `${quiz.maxScore}`, label: t.student.factPoints },
+    { value: t.student.minutesShort(quiz.durationMinutes), label: t.student.factTime },
   ]
   return (
     <div className={`flex border-y border-rule-soft ${inset === 15 ? '-mx-[15px]' : '-mx-4'}`}>
       {cells.map((cell, index) => (
         <div key={cell.label} className={`flex min-w-0 flex-1 flex-col gap-0.5 px-2.5 py-2 ${index > 0 ? 'border-s border-rule-soft' : ''}`}>
-          <span className="text-body font-semibold">
-            <Num>{cell.value}</Num>
-          </span>
+          <span className="text-body font-semibold tabular-nums">{cell.value}</span>
           <span className="text-[12px] text-muted">{cell.label}</span>
         </div>
       ))}
@@ -71,6 +73,7 @@ function InfoLine({ icon, children, tone = 'text-ink-2', align = 'center' }: { i
 }
 
 function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: number; offsetMs: number }) {
+  const { t, lang } = useLanguage()
   switch (quiz.status) {
     case 'InProgress':
       if (!quiz.attempt) return null
@@ -78,12 +81,10 @@ function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs
         <>
           <div className="flex flex-wrap items-center gap-2.5">
             <Timer remainingMs={remainingMs(quiz.attempt.deadline, offsetMs)} />
-            <span className="text-small text-ink-2">
-              left · ends at <Num>{formatTime(quiz.attempt.deadline)}</Num>
-            </span>
+            <span className="text-small text-ink-2">{t.student.leftEndsAt(formatTime(quiz.attempt.deadline))}</span>
           </div>
           <ButtonLink to={`/student/attempts/${quiz.attempt.id}`} size="lg" className="w-full">
-            Resume quiz
+            {t.student.resume}
             <Icon name="chevronRight" className="size-[18px]" />
           </ButtonLink>
         </>
@@ -94,15 +95,14 @@ function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs
         <>
           {isShortOnTime(quiz) && (
             <InfoLine icon="alert" tone="text-amber-ink font-semibold" align="start">
-              You’ll have <Num>{shortTimeWarning(quiz.effectiveMinutesIfStartedNow)}</Num> — the quiz closes at{' '}
-              <Num>{formatTime(quiz.closesAt)}</Num>.
+              {t.student.shortWarning(t.student.onlyMinutes(quiz.effectiveMinutesIfStartedNow ?? 0), formatTime(quiz.closesAt))}
             </InfoLine>
           )}
           <InfoLine icon="calendar" align="start">
-            Closes {formatDateTime(quiz.closesAt)} · {formatRelative(quiz.closesAt, nowMs)}
+            {t.student.closesLine(formatDateTime(quiz.closesAt, lang), formatRelative(quiz.closesAt, nowMs, lang))}
           </InfoLine>
           <ButtonLink to={`/student/quizzes/${quiz.id}`} variant="secondary" size="lg" className="w-full">
-            View quiz
+            {t.student.viewQuiz}
           </ButtonLink>
         </>
       )
@@ -110,7 +110,7 @@ function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs
     case 'Upcoming':
       return (
         <InfoLine icon="clock" align="start">
-          Opens {formatDateTime(quiz.opensAt)} · {formatRelative(quiz.opensAt, nowMs)}
+          {t.student.opensLine(formatDateTime(quiz.opensAt, lang), formatRelative(quiz.opensAt, nowMs, lang))}
         </InfoLine>
       )
 
@@ -121,7 +121,7 @@ function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs
       return (
         <>
           <div className="flex items-baseline justify-between rounded-option bg-desk px-3 py-2.5">
-            <span className="text-small text-ink-2">Your score</span>
+            <span className="text-small text-ink-2">{t.student.yourScore}</span>
             <span className={`text-card font-bold ${score < 0 ? 'text-red' : ''}`}>
               <Num>
                 {formatScore(score)} / {attempt.maxScore}
@@ -133,10 +133,12 @@ function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs
             </span>
           </div>
           <InfoLine icon={attempt.status === 'Expired' ? 'hourglass' : 'check'} align="start">
-            {attempt.status === 'Expired' ? 'Time ran out' : 'Submitted'} {formatShortDate(attempt.deadline)}
+            {attempt.status === 'Expired'
+              ? t.student.timeRanOutOn(formatShortDate(attempt.deadline, lang))
+              : t.student.submittedOn(formatShortDate(attempt.deadline, lang))}
           </InfoLine>
           <ButtonLink to={`/student/attempts/${attempt.id}/result`} variant="secondary" size="lg" className="w-full">
-            View result
+            {t.student.viewResult}
           </ButtonLink>
         </>
       )
@@ -145,7 +147,7 @@ function StatusDetails({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs
     case 'Missed':
       return (
         <InfoLine icon="minusCircle" tone="text-muted" align="start">
-          Closed {formatDateTime(quiz.closesAt)}. You didn’t start this quiz.
+          {t.student.missedLine(formatDateTime(quiz.closesAt, lang))}
         </InfoLine>
       )
   }

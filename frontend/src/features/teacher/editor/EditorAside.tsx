@@ -4,7 +4,7 @@ import { Num } from '../../../components/Auto'
 import { Badge } from '../../../components/Badge'
 import { Button } from '../../../components/Button'
 import { Icon } from '../../../components/Icon'
-import { plural } from '../../../lib/format'
+import { useLanguage } from '../../../i18n/LanguageContext'
 import { statusSentence } from './editorForm'
 
 export type EditorAction = 'save' | 'publish' | 'unpublish' | 'delete'
@@ -21,26 +21,24 @@ type AsideProps = {
 
 /** ≥ lg: sticky status + actions next to the form (prototype: Edit quiz → Status). */
 export function EditorAside({ view, facts, problemLines, busy, onAction }: AsideProps) {
+  const { t, lang } = useLanguage()
+  const m = t.editor
   const published = view?.isPublished ?? false
   return (
     <aside className="sticky top-6 hidden lg:block">
       <section className="flex flex-col gap-3.5 rounded-sheet border border-rule bg-paper p-[18px]">
         <div className="flex items-center justify-between">
-          <h2 className="text-body font-bold">Status</h2>
+          <h2 className="text-body font-bold">{m.status}</h2>
           <Badge kind={view?.state ?? 'Draft'} />
         </div>
-        <p className="text-small leading-[1.55] text-ink-2">{statusSentence(view)}</p>
+        <p className="text-small leading-[1.55] text-ink-2">{statusSentence(view, t, lang)}</p>
         <dl className="flex flex-col">
-          <FactRow label="Questions">
+          <FactRow label={m.factQuestions}>
             <Num>{facts.questions}</Num>
           </FactRow>
-          <FactRow label="Max score">
-            <Num>{plural(facts.points, 'point')}</Num>
-          </FactRow>
-          <FactRow label="Time limit">
-            <Num>{facts.minutes}</Num> min
-          </FactRow>
-          <FactRow label="Marking">{facts.marking}</FactRow>
+          <FactRow label={m.factMaxScore}>{m.points(facts.points)}</FactRow>
+          <FactRow label={m.factTimeLimit}>{m.minutesShort(facts.minutes)}</FactRow>
+          <FactRow label={m.factMarking}>{facts.marking}</FactRow>
         </dl>
 
         {problemLines.length > 0 && <ProblemsBanner lines={problemLines} />}
@@ -48,19 +46,19 @@ export function EditorAside({ view, facts, problemLines, busy, onAction }: Aside
         {published ? (
           <>
             <Button size="lg" className="w-full" loading={busy === 'save'} disabled={busy !== null} onClick={() => onAction('save')}>
-              Save changes
+              {m.saveChanges}
             </Button>
             <Button variant="secondary" className="w-full" loading={busy === 'unpublish'} disabled={busy !== null} onClick={() => onAction('unpublish')}>
-              Unpublish
+              {m.unpublish}
             </Button>
           </>
         ) : (
           <>
             <Button size="lg" className="w-full" loading={busy === 'publish'} disabled={busy !== null} onClick={() => onAction('publish')}>
-              Publish
+              {m.publish}
             </Button>
             <Button variant="secondary" className="w-full" loading={busy === 'save'} disabled={busy !== null} onClick={() => onAction('save')}>
-              Save draft
+              {m.saveDraft}
             </Button>
           </>
         )}
@@ -70,7 +68,7 @@ export function EditorAside({ view, facts, problemLines, busy, onAction }: Aside
 
         <p className="flex gap-2 text-meta leading-normal text-muted">
           <Icon name="lock" className="mt-0.5 size-4" />
-          <span>When the first student starts, this quiz locks: questions, marking, time limit and classes can’t change after that.</span>
+          <span>{m.lockHint}</span>
         </p>
       </section>
     </aside>
@@ -78,6 +76,7 @@ export function EditorAside({ view, facts, problemLines, busy, onAction }: Aside
 }
 
 export function DeleteButton({ busy, onClick }: { busy: EditorAction | null; onClick: () => void }) {
+  const { t } = useLanguage()
   return (
     <Button
       variant="secondary"
@@ -87,13 +86,14 @@ export function DeleteButton({ busy, onClick }: { busy: EditorAction | null; onC
       onClick={onClick}
     >
       <Icon name="trash" className="size-[18px]" />
-      Delete quiz
+      {t.editor.deleteQuiz}
     </Button>
   )
 }
 
 export function ProblemsBanner({ lines, title }: { lines: string[]; title?: string }) {
-  const heading = title ?? (lines.length === 1 ? '1 problem to fix' : `${lines.length} problems to fix`)
+  const { t } = useLanguage()
+  const heading = title ?? t.editor.problemsCount(lines.length)
   return (
     <div role="alert" className="flex items-start gap-2.5 rounded-option border border-red-line bg-red-bg px-3.5 py-3">
       <span className="pt-px text-red">
@@ -106,7 +106,7 @@ export function ProblemsBanner({ lines, title }: { lines: string[]; title?: stri
             {line}
           </div>
         ))}
-        {lines.length > 4 && <div className="text-small text-ink-2">…and {lines.length - 4} more.</div>}
+        {lines.length > 4 && <div className="text-small text-ink-2">{t.editor.andMore(lines.length - 4)}</div>}
       </div>
     </div>
   )
@@ -123,28 +123,30 @@ function FactRow({ label, children }: { label: string; children: ReactNode }) {
 
 /** < lg: the same actions pinned to the bottom (prototype: Edit quiz, mobile). */
 export function EditorFooter({ view, busy, onAction }: { view: QuizEditorView | null; busy: EditorAction | null; onAction: (action: EditorAction) => void }) {
+  const { t } = useLanguage()
+  const m = t.editor
   const published = view?.isPublished ?? false
   return (
     <div className="flex gap-2.5">
       <div className="flex-1">
         {published ? (
           <Button variant="secondary" size="lg" className="w-full" loading={busy === 'unpublish'} disabled={busy !== null} onClick={() => onAction('unpublish')}>
-            Unpublish
+            {m.unpublish}
           </Button>
         ) : (
           <Button variant="secondary" size="lg" className="w-full" loading={busy === 'save'} disabled={busy !== null} onClick={() => onAction('save')}>
-            Save draft
+            {m.saveDraft}
           </Button>
         )}
       </div>
       <div className="flex-1">
         {published ? (
           <Button size="lg" className="w-full" loading={busy === 'save'} disabled={busy !== null} onClick={() => onAction('save')}>
-            Save changes
+            {m.saveChanges}
           </Button>
         ) : (
           <Button size="lg" className="w-full" loading={busy === 'publish'} disabled={busy !== null} onClick={() => onAction('publish')}>
-            Publish
+            {m.publish}
           </Button>
         )}
       </div>

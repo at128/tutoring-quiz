@@ -1,16 +1,5 @@
 import type { StudentQuizCard } from '../../api/types'
 
-/** The API reports whole minutes, so zero can still mean a short but valid start window. */
-export function availableTimeText(wholeMinutes: number | null): string {
-  if (wholeMinutes === null) return ''
-  if (wholeMinutes === 0) return 'less than 1 minute'
-  return `${wholeMinutes} ${wholeMinutes === 1 ? 'minute' : 'minutes'}`
-}
-
-/** The approved warning, "You'll have only 8 minutes", without claiming "only 0 minutes" in the last minute. */
-export const shortTimeWarning = (wholeMinutes: number | null): string =>
-  wholeMinutes === 0 ? availableTimeText(0) : `only ${availableTimeText(wholeMinutes)}`
-
 /** Keep time-derived availability current between server refreshes; the server still authorizes a start. */
 export function liveQuiz(quiz: StudentQuizCard, nowMs: number): StudentQuizCard {
   if (quiz.status !== 'Upcoming' && quiz.status !== 'Available') return quiz

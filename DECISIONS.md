@@ -42,7 +42,7 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
 | Time zones | Stored in UTC; shown in the viewer's local time (Amman is UTC+3 all year). | Correct for the centre and for reviewers elsewhere. |
 | Points | Whole numbers per question; scores kept to 2 decimals. | Enough for fractional penalties like 25 % of 1 point. |
 | Options per question | 2–6, default 4, exactly one correct. | The brief says 4; a little flexibility costs nothing. |
-| UI language | English interface; Arabic content fully supported everywhere (per-text direction, Arabic-capable font). | The brief requires Arabic content to work; a full Arabic UI is stretch S4 and the layout is already direction-neutral. |
+| UI language | **Arabic and English interface.** The language follows the device (an Arabic phone gets Arabic), and a «العربية / English» button on the sign-in page and in the top bar switches in place and is remembered on that device. Arabic is fully right-to-left with Western digits 0-9, the month names يناير, فبراير…, and real Arabic plurals. Numbers inside Arabic sentences are isolated, so "−0.5" or "25%" never flip. Content keeps its own direction either way. | The brief requires Arabic content to work. Atta then asked (24 Sep) for the whole experience to be Arabic, since most students and teachers use Arabic phones. English stays for reviewers. |
 
 ## 3. Features Nour didn't ask for — and why
 - **Autosave + resume** — phones get locked, refreshed, and run out of battery.
@@ -56,7 +56,8 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
   The server still decides whether a start is allowed. In the last minute, the warning says "less than 1 minute", not "0 minutes".
 - **The editor never shifts a time silently.** Impossible dates (30 Feb) and times skipped by a daylight-saving jump are rejected. Saving a quiz keeps its stored times to the second until the teacher changes them.
 - **A live demo that updates itself**: https://quiz.just-atta.site. The server pulls each commit of `main` whose CI passed, builds it and swaps it in, rolling back if the health check fails. It publishes no new port, and nothing about the server (keys, addresses, secrets) is stored on GitHub. See `deploy/README.md`. This is reviewer convenience; `docker compose up --build` stays the way to run the project.
-- No stretch items (S1–S5 in `PLAN.md`) were built.
+- **Stretch S4, the Arabic interface, was built** at Atta's request (see §2, UI language). No other stretch items (S1–S3, S5) were built.
+- **Text that shows nothing counts as empty.** A title, question or option made only of spaces, tatweel (ـ), diacritics or invisible marks (ZWNJ, RLM…) is rejected with the same rule on the server and in the browser.
 
 ## 4. Deliberately left out
 Self-registration and password reset · an admin UI · uploading spreadsheets through the UI · question banks and reuse · shuffling and anti-cheating measures · live dashboards · notifications · multiple centres · audit log · background jobs, queues, caches · browser E2E tests in CI · production hosting (the live demo is one self-updating container on a shared server, for reviewers). Each is reasonable later; none is needed for Nour's first weekly quiz.
@@ -67,7 +68,7 @@ Self-registration and password reset · an admin UI · uploading spreadsheets th
 3. Question bank: reuse questions across quizzes and classes.
 4. Per-question analytics (which questions most students got wrong).
 5. Optional option/question shuffling per quiz.
-6. Full Arabic interface toggle.
+6. Server messages in Arabic. The interface already translates every error by its code, but server field messages are English.
 7. Production hosting: PostgreSQL, automated backups and monitoring (HTTPS hosting already exists as the live demo).
 8. Playwright E2E for the student journey on a mobile viewport.
 
@@ -76,5 +77,5 @@ Self-registration and password reset · an admin UI · uploading spreadsheets th
 - **Login limits count every attempt:** 10/min per IP + username and 100/min per IP. A very large centre behind one public IP could reach the per-IP cap; it's configurable (`RateLimiting:*`).
 - **The live demo is shared.** Anyone with the published demo passwords can use it. An admin resets it on the server (`tq-deploy reset-demo`). Its quiz dates are relative to the last reset, so after about 14 days every demo quiz has closed until the next reset.
 - **Browser journeys aren't automated.** The frontend has unit tests of its logic (answers/autosave, timer, server clock, editor validation, results sorting). The full journeys were driven with Playwright scripts during development, at 360 px and on desktop, outside the repo and not in CI (§4).
-- **English interface only.** Arabic content works everywhere; an Arabic UI toggle is on the next-week list.
+- **Native date/time pickers follow the device.** On an Arabic phone, the browser’s own date picker may show Arabic-Indic digits; everything the app writes uses 0-9.
 - *(M4 findings that are accepted but not fixed are listed here after triage.)*

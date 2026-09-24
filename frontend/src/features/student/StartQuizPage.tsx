@@ -16,14 +16,16 @@ import { ErrorState, NotAvailableState, Skeleton } from '../../components/States
 import { formatPercent, formatScore } from '../../lib/format'
 import { formatDayTime, formatRelative, formatShortDate, formatTime, remainingMs, serverOffset } from '../../lib/time'
 import { useServerNow } from '../../lib/useServerNow'
-import { availableTimeText, liveQuiz, shortTimeWarning } from './liveQuiz'
+import { useLanguage } from '../../i18n/LanguageContext'
+import { liveQuiz } from './liveQuiz'
 import { Timer } from './takeQuiz/QuizHeader'
 import { displayPercentage, isShortOnTime } from './studentQuizCopy'
 
-const BACK = { to: '/student', label: 'Your quizzes' }
 
 /** Quiz details before starting (prototype: "Start quiz" and "Start quiz states"). */
 export function StartQuizPage() {
+  const { t } = useLanguage()
+  const BACK = { to: '/student', label: t.student.yourQuizzes }
   const { quizId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -46,7 +48,7 @@ export function StartQuizPage() {
   if (list.isPending)
     return (
       <PageShell back={BACK}>
-        <div className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-[18px]" aria-busy="true" aria-label="Loading the quiz">
+        <div className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-[18px]" aria-busy="true" aria-label={t.start.loading}>
           <Skeleton className="h-6 w-[90px] rounded-full" />
           <Skeleton className="h-7 w-4/5" />
           <Skeleton className="h-4 w-1/2" />
@@ -58,15 +60,15 @@ export function StartQuizPage() {
   if (list.isError)
     return (
       <PageShell back={BACK}>
-        <ErrorState error={list.error} onRetry={() => void list.refetch()} title="Couldn’t load this quiz" />
+        <ErrorState error={list.error} onRetry={() => void list.refetch()} title={t.start.loadError} />
       </PageShell>
     )
 
   if (!quiz)
     return (
       <PageShell back={BACK}>
-        <NotAvailableState title="This quiz isn’t available" backTo="/student" backLabel="Back to your quizzes">
-          It may have been removed, or it isn’t for your class. Check your list of quizzes.
+        <NotAvailableState title={t.start.notAvailableTitle} backTo="/student" backLabel={t.start.backToQuizzes}>
+          {t.start.notAvailableBody}
         </NotAvailableState>
       </PageShell>
     )
@@ -80,8 +82,8 @@ export function StartQuizPage() {
       footer={<FooterAction quiz={quiz} nowMs={nowMs} starting={start.isPending} onStart={() => start.mutate()} />}
     >
       {startError && (
-        <Banner kind="error" title="The quiz didn’t start">
-          {isApiError(start.error, 'network_error') ? 'Check your connection and try again.' : 'Try again in a moment.'}
+        <Banner kind="error" title={t.start.startFailed}>
+          {isApiError(start.error, 'network_error') ? t.errors.checkConnection : t.errors.tryLater}
         </Banner>
       )}
       <StateBox quiz={quiz} nowMs={nowMs} offsetMs={offset} />
@@ -92,6 +94,7 @@ export function StartQuizPage() {
 }
 
 function StateBox({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: number; offsetMs: number }) {
+  const { t, lang } = useLanguage()
   switch (quiz.status) {
     case 'Available': {
       if (isShortOnTime(quiz))
@@ -100,14 +103,10 @@ function StateBox({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: num
             <div className="flex items-center gap-2.5 text-amber-ink">
               <Icon name="alert" strokeWidth={2} />
               <span className="text-card font-bold">
-                You’ll have <Num>{shortTimeWarning(quiz.effectiveMinutesIfStartedNow)}</Num>
+                {t.start.shortTitle(t.student.onlyMinutes(quiz.effectiveMinutesIfStartedNow ?? 0))}
               </span>
             </div>
-            <p className="text-[15px] leading-[1.55] text-ink">
-              This quiz closes at <Num>{formatTime(quiz.closesAt)}</Num>, so you’ll get less than the usual{' '}
-              <Num>{quiz.durationMinutes}</Num> minutes. At <Num>{formatTime(quiz.closesAt)}</Num> your saved answers are submitted
-              automatically.
-            </p>
+            <p className="text-[15px] leading-[1.55] text-ink">{t.start.shortBody(formatTime(quiz.closesAt), quiz.durationMinutes)}</p>
           </div>
         )
       const until = new Date(nowMs + quiz.durationMinutes * 60_000).toISOString()
@@ -115,10 +114,8 @@ function StateBox({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: num
         <div className="flex items-center gap-3 rounded-option border border-rule bg-tint px-3.5 py-3">
           <Icon name="clock" className="size-[22px]" strokeWidth={2} />
           <div className="flex flex-col gap-0.5">
-            <span className="text-meta text-muted">If you start now</span>
-            <span className="text-body font-semibold">
-              You’ll have the full <Num>{quiz.durationMinutes}</Num> minutes, until <Num>{formatTime(until)}</Num>.
-            </span>
+            <span className="text-meta text-muted">{t.start.ifStartNow}</span>
+            <span className="text-body font-semibold">{t.start.fullTime(quiz.durationMinutes, formatTime(until))}</span>
           </div>
         </div>
       )
@@ -130,24 +127,20 @@ function StateBox({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: num
         <div className="flex flex-col gap-2.5 rounded-option border-2 border-ink bg-tint p-3.5">
           <div className="flex items-center gap-2.5">
             <Icon name="halfCircle" />
-            <span className="text-[17px] font-bold">You’ve already started</span>
+            <span className="text-[17px] font-bold">{t.start.alreadyStarted}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <Timer remainingMs={remainingMs(quiz.attempt.deadline, offsetMs)} />
-            <span className="text-small text-ink-2">
-              left · ends at <Num>{formatTime(quiz.attempt.deadline)}</Num>
-            </span>
+            <span className="text-small text-ink-2">{t.student.leftEndsAt(formatTime(quiz.attempt.deadline))}</span>
           </div>
-          <p className="text-small leading-normal text-ink-2">
-            Your saved answers are waiting. The timer kept running while you were away.
-          </p>
+          <p className="text-small leading-normal text-ink-2">{t.start.savedWaiting}</p>
         </div>
       )
 
     case 'Upcoming':
       return (
-        <InfoBox icon="calendar" title={`Opens ${formatShortDate(quiz.opensAt)} at ${formatTime(quiz.opensAt)}`}>
-          Come back then. You’ll have {quiz.durationMinutes} minutes once you start.
+        <InfoBox icon="calendar" title={t.start.opensAt(formatShortDate(quiz.opensAt, lang), formatTime(quiz.opensAt))}>
+          {t.start.comeBack(quiz.durationMinutes)}
         </InfoBox>
       )
 
@@ -159,10 +152,10 @@ function StateBox({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: num
         <div className="flex flex-col gap-2 rounded-option border-2 border-ink bg-paper p-3.5">
           <div className="flex items-center gap-2.5">
             <Icon name="check" strokeWidth={2} />
-            <span className="text-[17px] font-bold">You’ve already taken this quiz</span>
+            <span className="text-[17px] font-bold">{t.start.alreadyTaken}</span>
           </div>
           <p className="text-[15px] text-ink-2">
-            Your score:{' '}
+            {t.start.yourScoreColon}{' '}
             <strong className={score < 0 ? 'text-red' : 'text-ink'}>
               <Num>
                 {formatScore(score)} / {attempt.maxScore}
@@ -170,15 +163,15 @@ function StateBox({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: num
             </strong>{' '}
             · <Num>{formatPercent(displayPercentage(score, attempt.maxScore))}</Num>
           </p>
-          <p className="text-meta text-muted">Each quiz can be taken once.</p>
+          <p className="text-meta text-muted">{t.start.onceOnly}</p>
         </div>
       )
     }
 
     case 'Missed':
       return (
-        <InfoBox icon="minusCircle" title={`Closed ${formatShortDate(quiz.closesAt)} at ${formatTime(quiz.closesAt)}`}>
-          You didn’t start this quiz before it closed.
+        <InfoBox icon="minusCircle" title={t.start.closedAt(formatShortDate(quiz.closesAt, lang), formatTime(quiz.closesAt))}>
+          {t.start.missedBody}
         </InfoBox>
       )
   }
@@ -199,6 +192,7 @@ function InfoBox({ icon, title, children }: { icon: IconName; title: string; chi
 }
 
 function DetailsSheet({ quiz, nowMs }: { quiz: StudentQuizCard; nowMs: number }) {
+  const { t, lang } = useLanguage()
   const user = useSignedInUser()
   const example = (2 * quiz.wrongAnswerPenaltyPercent) / 100
 
@@ -217,7 +211,7 @@ function DetailsSheet({ quiz, nowMs }: { quiz: StudentQuizCard; nowMs: number })
           {user.classRoom && (
             <>
               <span className="text-rule">|</span>
-              <span>Class {user.classRoom.name}</span>
+              <span>{t.shell.className(user.classRoom.name)}</span>
             </>
           )}
         </div>
@@ -231,27 +225,22 @@ function DetailsSheet({ quiz, nowMs }: { quiz: StudentQuizCard; nowMs: number })
       <DoubleRule />
 
       <dl className="flex flex-col">
-        <Fact label="Questions">
+        <Fact label={t.start.questions}>
           <Num>{quiz.questionCount}</Num>
         </Fact>
-        <Fact label="Maximum score">
-          <Num>{quiz.maxScore}</Num> points
-        </Fact>
-        <Fact label="Time limit">
-          <Num>{quiz.durationMinutes}</Num> minutes
-        </Fact>
-        <Fact label="Opens">{formatDayTime(quiz.opensAt, nowMs)}</Fact>
-        <Fact label="Closes">{formatDayTime(quiz.closesAt, nowMs)}</Fact>
-        <Fact label="Negative marking">
+        <Fact label={t.start.maxScore}>{t.start.points(quiz.maxScore)}</Fact>
+        <Fact label={t.start.timeLimit}>{t.start.minutes(quiz.durationMinutes)}</Fact>
+        <Fact label={t.start.opens}>{formatDayTime(quiz.opensAt, nowMs, lang)}</Fact>
+        <Fact label={t.start.closes}>{formatDayTime(quiz.closesAt, nowMs, lang)}</Fact>
+        <Fact label={t.start.negativeMarking}>
           {quiz.wrongAnswerPenaltyPercent > 0 ? (
             <>
-              <strong className="font-semibold">Yes, {quiz.wrongAnswerPenaltyPercent}%.</strong> A wrong answer costs{' '}
-              {quiz.wrongAnswerPenaltyPercent}% of that question’s points (e.g. <Num>{formatScore(-example)}</Num> on a 2-point
-              question). Unanswered questions cost nothing.
+              <strong className="font-semibold">{t.start.penaltyYes(quiz.wrongAnswerPenaltyPercent)}</strong>{' '}
+              {t.start.penaltyDetail(quiz.wrongAnswerPenaltyPercent, formatScore(-example))}
             </>
           ) : (
             <>
-              <strong className="font-semibold">None.</strong> Wrong answers cost nothing, so answer every question.
+              <strong className="font-semibold">{t.start.penaltyNo}</strong> {t.start.penaltyNoDetail}
             </>
           )}
         </Fact>
@@ -270,15 +259,16 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function BeforeYouStart() {
+  const { t } = useLanguage()
   const rules: { icon: IconName; text: string }[] = [
-    { icon: 'lock', text: 'One attempt only. You can’t retake this quiz.' },
-    { icon: 'check', text: 'Each answer saves the moment you tap it.' },
-    { icon: 'clock', text: 'The timer keeps running if you close the page or lock your phone.' },
-    { icon: 'arrowRight', text: 'When time runs out, your saved answers are submitted for you.' },
+    { icon: 'lock', text: t.start.rules.once },
+    { icon: 'check', text: t.start.rules.saves },
+    { icon: 'clock', text: t.start.rules.timer },
+    { icon: 'arrowRight', text: t.start.rules.auto },
   ]
   return (
     <div className="flex flex-col gap-2.5">
-      <h2 className="text-body font-bold">Before you start</h2>
+      <h2 className="text-body font-bold">{t.start.beforeYouStart}</h2>
       <ul className="flex flex-col gap-2.5">
         {rules.map((rule) => (
           <li key={rule.text} className="flex items-start gap-2.5 text-small leading-normal text-ink-2">
@@ -294,30 +284,31 @@ function BeforeYouStart() {
 }
 
 function FooterAction({ quiz, nowMs, starting, onStart }: { quiz: StudentQuizCard; nowMs: number; starting: boolean; onStart: () => void }) {
+  const { t, lang } = useLanguage()
   switch (quiz.status) {
     case 'Available':
       return (
         <Button size="lg" className="w-full" loading={starting} onClick={onStart}>
-          {isShortOnTime(quiz) ? `Start quiz — ${availableTimeText(quiz.effectiveMinutesIfStartedNow)}` : 'Start quiz'}
+          {isShortOnTime(quiz) ? t.start.startShort(t.student.minutes(quiz.effectiveMinutesIfStartedNow ?? 0)) : t.start.start}
         </Button>
       )
     case 'InProgress':
       return quiz.attempt ? (
         <ButtonLink to={`/student/attempts/${quiz.attempt.id}`} size="lg" className="w-full">
-          Resume quiz
+          {t.student.resume}
           <Icon name="chevronRight" className="size-[18px]" />
         </ButtonLink>
       ) : null
     case 'Completed':
       return quiz.attempt ? (
         <ButtonLink to={`/student/attempts/${quiz.attempt.id}/result`} variant="secondary" size="lg" className="w-full">
-          View result
+          {t.student.viewResult}
         </ButtonLink>
       ) : null
     case 'Upcoming':
-      return <DisabledAction>Opens {formatRelative(quiz.opensAt, nowMs)}</DisabledAction>
+      return <DisabledAction>{t.start.opensRelative(formatRelative(quiz.opensAt, nowMs, lang))}</DisabledAction>
     case 'Missed':
-      return <DisabledAction>This quiz has closed</DisabledAction>
+      return <DisabledAction>{t.start.closed}</DisabledAction>
   }
 }
 

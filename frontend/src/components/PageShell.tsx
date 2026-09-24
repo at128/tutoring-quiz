@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router'
 import { useAuth } from '../auth/useAuth'
+import { useT } from '../i18n/LanguageContext'
 import { Banner } from './Banner'
 import { Icon, Logo } from './Icon'
+import { LanguageToggle } from './LanguageToggle'
 
 type Width = 'student' | 'teacher'
 const widths: Record<Width, string> = {
@@ -85,19 +87,21 @@ function useSignOut() {
 }
 
 function SignOutError({ width }: { width: Width }) {
+  const t = useT()
   return (
     <div className={`mx-auto w-full pb-3 ${widths[width]}`}>
-      <Banner kind="error">Sign out didn't work. You're still signed in. Check your connection and tap Sign out again.</Banner>
+      <Banner kind="error">{t.shell.signOutFailed}</Banner>
     </div>
   )
 }
 
 function SignOutIconButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
+  const t = useT()
   return (
     <button
       type="button"
-      aria-label="Sign out"
-      title="Sign out"
+      aria-label={t.shell.signOut}
+      title={t.shell.signOut}
       onClick={onClick}
       disabled={busy}
       aria-busy={busy || undefined}
@@ -109,6 +113,7 @@ function SignOutIconButton({ onClick, busy }: { onClick: () => void; busy: boole
 }
 
 function StudentBar({ back }: { back?: BackTarget }) {
+  const t = useT()
   const { user } = useAuth()
   const signOut = useSignOut()
 
@@ -126,17 +131,18 @@ function StudentBar({ back }: { back?: BackTarget }) {
         ) : (
           <Link to="/" className="inline-flex items-center gap-2.5 text-body font-bold text-ink">
             <Logo />
-            Weekly Quizzes
+            {t.app.name}
           </Link>
         )}
 
         {user && (
           <div className="flex min-w-0 items-center gap-0.5">
+            <LanguageToggle compact />
             <div className="flex min-w-0 flex-col items-end">
               <span dir="auto" className="max-w-[130px] truncate text-meta font-semibold text-ink sm:max-w-[240px]">
                 {user.fullName}
               </span>
-              {user.classRoom && <span className="text-[12px] text-muted">Class {user.classRoom.name}</span>}
+              {user.classRoom && <span className="text-[12px] text-muted">{t.shell.className(user.classRoom.name)}</span>}
             </div>
             <SignOutIconButton onClick={() => void signOut.run()} busy={signOut.signingOut} />
           </div>
@@ -148,6 +154,7 @@ function StudentBar({ back }: { back?: BackTarget }) {
 }
 
 function TeacherBar() {
+  const t = useT()
   const { user } = useAuth()
   const signOut = useSignOut()
 
@@ -157,23 +164,24 @@ function TeacherBar() {
         <div className="flex items-center gap-7">
           <Link to="/teacher" className="flex items-center gap-2.5 text-ink">
             <Logo />
-            <span className="text-body font-bold md:text-[17px]">Weekly Quizzes</span>
-            <span className="hidden rounded-full border border-rule px-2 py-0.5 text-meta text-muted md:inline">Teacher</span>
+            <span className="text-body font-bold md:text-[17px]">{t.app.name}</span>
+            <span className="hidden rounded-full border border-rule px-2 py-0.5 text-meta text-muted md:inline">{t.shell.teacher}</span>
           </Link>
-          <nav aria-label="Main" className="hidden md:block">
+          <nav aria-label={t.shell.mainNav} className="hidden md:block">
             <NavLink
               to="/teacher"
               className={({ isActive }) =>
                 `inline-flex min-h-11 items-center border-b-2 text-[15px] font-semibold text-ink ${isActive ? 'border-ink' : 'border-transparent hover:border-rule'}`
               }
             >
-              My quizzes
+              {t.shell.myQuizzes}
             </NavLink>
           </nav>
         </div>
 
         {user && (
           <div className="flex min-w-0 items-center gap-0.5 md:gap-2">
+            <LanguageToggle compact />
             <span dir="auto" className="max-w-[130px] truncate text-meta font-semibold md:max-w-[260px] md:text-small">
               {user.fullName}
             </span>
@@ -187,7 +195,7 @@ function TeacherBar() {
               className="hidden min-h-11 items-center gap-2 rounded-control px-[18px] text-body font-semibold text-ink hover:bg-tint disabled:opacity-60 md:inline-flex"
             >
               <Icon name="logout" className="size-[18px]" />
-              Sign out
+              {t.shell.signOut}
             </button>
           </div>
         )}

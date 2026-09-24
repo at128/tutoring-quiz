@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { isApiError } from '../api/client'
+import { useT } from '../i18n/LanguageContext'
 import { Button, ButtonLink } from './Button'
 import { Icon, type IconName } from './Icon'
 
@@ -36,23 +37,24 @@ export function NotAvailableState({ title, children, backTo, backLabel }: { titl
 }
 
 /** Says what happened and what to do; offers Try again. */
-export function ErrorState({ error, onRetry, title = "This didn't load" }: { error: unknown; onRetry?: () => void; title?: string }) {
+export function ErrorState({ error, onRetry, title }: { error: unknown; onRetry?: () => void; title?: string }) {
+  const t = useT()
   const message = isApiError(error, 'network_error')
-    ? 'Check your connection and try again.'
-    : isApiError(error) && error.detail
+    ? t.errors.checkConnection
+    : t.errors.useServerDetail && isApiError(error) && error.detail
       ? error.detail
-      : 'Something went wrong on our side. Try again in a moment.'
+      : t.errors.serverProblem
 
   return (
     <div role="alert">
       <StateCard
         icon={isApiError(error, 'network_error') ? 'wifiOff' : 'alert'}
-        title={title}
+        title={title ?? t.errors.didNotLoad}
         action={
           onRetry && (
             <Button onClick={onRetry}>
               <Icon name="refresh" className="size-[18px]" />
-              Try again
+              {t.errors.tryAgain}
             </Button>
           )
         }

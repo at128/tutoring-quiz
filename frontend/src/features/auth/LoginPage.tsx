@@ -5,28 +5,34 @@ import { afterLoginPath } from '../../auth/navigation'
 import { useAuth } from '../../auth/useAuth'
 import { Button } from '../../components/Button'
 import { Icon, Logo, type IconName } from '../../components/Icon'
+import { LanguageToggle } from '../../components/LanguageToggle'
 import { PageSpinner } from '../../components/Spinner'
+import { useT } from '../../i18n/LanguageContext'
+import type { Messages } from '../../i18n/en'
 
 type FieldErrors = { username?: string; password?: string }
 type FormError = { tone: 'error' | 'warn'; icon: IconName; title: string; detail: string }
 
 /** Plain-language problem for a failed sign-in, chosen by error code (never says which field was wrong). */
-function loginProblem(error: unknown): FormError {
+function loginProblem(error: unknown, t: Messages): FormError {
   if (isApiError(error, 'auth.invalid_credentials'))
-    return { tone: 'error', icon: 'alert', title: 'Username or password is incorrect.', detail: 'Check both and try again. Usernames look like 10a-07.' }
-  if (isApiError(error, 'rate_limited'))
-    return { tone: 'warn', icon: 'clock', title: 'Too many attempts.', detail: 'Wait a minute, then try again.' }
+    return { tone: 'error', icon: 'alert', title: t.login.invalidTitle, detail: t.login.invalidDetail }
+  if (isApiError(error, 'rate_limited')) return { tone: 'warn', icon: 'clock', title: t.login.rateTitle, detail: t.login.rateDetail }
   if (isApiError(error, 'network_error'))
-    return { tone: 'error', icon: 'wifiOff', title: 'Can’t reach the server.', detail: 'Check your connection and try again.' }
-  return { tone: 'error', icon: 'alert', title: 'Signing in didn’t work.', detail: 'Try again in a moment.' }
+    return { tone: 'error', icon: 'wifiOff', title: t.login.offlineTitle, detail: t.errors.checkConnection }
+  return { tone: 'error', icon: 'alert', title: t.login.failedTitle, detail: t.errors.tryLater }
 }
 
-function validate(username: string, password: string): FieldErrors {
+function validate(username: string, password: string, t: Messages): FieldErrors {
   return {
-    username: username.trim() ? undefined : 'Enter your username.',
-    password: password ? undefined : 'Enter your password.',
+    username: username.trim() ? undefined : t.login.usernameRequired,
+    password: password ? undefined : t.login.passwordRequired,
   }
 }
+
+/** Server field messages are English; other languages show their own words for the same field. */
+const serverFieldMessage = (message: string | undefined, fallback: string, t: Messages) =>
+  message === undefined ? undefined : t.errors.useServerDetail ? message : fallback
 
 const RATE_LIMIT_WAIT_MS = 60_000
 
@@ -36,6 +42,7 @@ const keepInView = (event: { currentTarget: HTMLElement }) =>
 
 /** Top-aligned sign-in (prototype: "Sign in" and "Sign in states"). */
 export function LoginPage() {
+  const t = useT()
   const { user, isChecking, signIn } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -62,7 +69,7 @@ export function LoginPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     if (submitting || waiting) return
-    const errors = validate(username, password)
+    const errors = validate(username, password, t)
     setFieldErrors(errors)
     setProblem(null)
     if (errors.username || errors.password) return
@@ -73,9 +80,12 @@ export function LoginPage() {
       navigate(afterLoginPath(signedIn.role, returnTo), { replace: true })
     } catch (error) {
       if (isApiError(error, 'validation_failed')) {
-        setFieldErrors({ username: error.errors.username?.[0], password: error.errors.password?.[0] })
+        setFieldErrors({
+          username: serverFieldMessage(error.errors.username?.[0], t.login.usernameCheck, t),
+          password: serverFieldMessage(error.errors.password?.[0], t.login.passwordRequired, t),
+        })
       } else {
-        setProblem(loginProblem(error))
+        setProblem(loginProblem(error, t))
         if (isApiError(error, 'rate_limited')) setWaiting(true)
       }
       setSubmitting(false)
@@ -87,20 +97,21 @@ export function LoginPage() {
       <main className="mx-auto flex w-full max-w-[420px] flex-col gap-7 px-4 pt-[calc(48px+env(safe-area-inset-top))] pb-6">
         <div className="flex items-center gap-3">
           <Logo size={40} />
-          <div className="flex flex-col">
-            <span className="text-[20px] font-bold">Weekly Quizzes</span>
-            <span className="text-small text-muted">Tutoring centre · Amman</span>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="text-[20px] font-bold">{t.app.name}</span>
+            <span className="text-small text-muted">{t.app.centre}</span>
           </div>
+          <LanguageToggle className="-me-2 border border-rule bg-paper" />
         </div>
 
         <section className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-5">
-          <h1 className="text-page leading-[1.3] font-bold">Sign in</h1>
+          <h1 className="text-page leading-[1.3] font-bold">{t.login.title}</h1>
           <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-4">
             {problem && <ProblemBanner problem={problem} />}
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="username" className="text-small font-semibold">
-                Username
+                {t.login.username}
               </label>
               <input
                 id="username"
@@ -112,19 +123,19 @@ export function LoginPage() {
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                dir="auto"
+                dir="ltr"
                 aria-invalid={fieldErrors.username ? true : undefined}
                 aria-describedby="username-hint"
                 className={`h-12 w-full rounded-control bg-paper px-3.5 font-mono text-body text-ink ${fieldErrors.username ? 'border-2 border-red' : 'border border-strong'}`}
               />
               <div id="username-hint" className={`text-meta leading-[1.45] ${fieldErrors.username ? 'text-red' : 'text-muted'}`}>
-                {fieldErrors.username ?? 'The username on your card from the centre, e.g. 10a-07.'}
+                {fieldErrors.username ?? t.login.usernameHint}
               </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="password" className="text-small font-semibold">
-                Password
+                {t.login.password}
               </label>
               <div
                 className={`flex h-12 items-center rounded-control bg-paper ps-3.5 focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-focus ${fieldErrors.password ? 'border-2 border-red' : 'border border-strong'}`}
@@ -148,7 +159,7 @@ export function LoginPage() {
                   aria-controls="password"
                   className="min-h-11 px-3 text-small font-semibold text-ink"
                 >
-                  {showPassword ? 'Hide' : 'Show'}
+                  {showPassword ? t.login.hide : t.login.show}
                 </button>
               </div>
               {fieldErrors.password && (
@@ -164,17 +175,17 @@ export function LoginPage() {
                 disabled
                 className="flex min-h-12 w-full items-center justify-center rounded-control border border-rule-soft bg-rule-soft px-[18px] text-body leading-[1.2] font-semibold text-[#6B7690]"
               >
-                Sign in
+                {t.login.submit}
               </button>
             ) : (
               <Button type="submit" size="lg" loading={submitting} className="w-full">
-                Sign in
+                {t.login.submit}
               </Button>
             )}
           </form>
         </section>
 
-        <p className="text-center text-small leading-normal text-muted">Forgot your password? Ask your teacher or the centre office.</p>
+        <p className="text-center text-small leading-normal text-muted">{t.login.forgot}</p>
       </main>
     </div>
   )

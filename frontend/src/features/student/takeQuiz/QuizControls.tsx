@@ -4,9 +4,9 @@ import { Button, ButtonLink } from '../../../components/Button'
 import { Dialog } from '../../../components/Dialog'
 import { Icon } from '../../../components/Icon'
 import { Spinner } from '../../../components/Spinner'
-import { plural } from '../../../lib/format'
+import { useLanguage } from '../../../i18n/LanguageContext'
 import { isAnswered, type Answers } from './answers'
-import { noticeText, type TimeNotice } from './timer'
+import type { TimeNotice } from './timer'
 
 const footerButton =
   'flex min-h-12 w-full items-center justify-center gap-2 rounded-control border px-4 text-body font-semibold'
@@ -27,6 +27,7 @@ export function QuizFooter({
   onNext: () => void
   onSubmit: () => void
 }) {
+  const { t } = useLanguage()
   return (
     <footer className="relative z-[2] flex-none border-t border-rule bg-paper pb-[calc(12px+env(safe-area-inset-bottom))]">
       <div className="mx-auto flex w-full max-w-[640px] gap-2.5 px-4 pt-3">
@@ -38,17 +39,17 @@ export function QuizFooter({
             className={`${footerButton} ${isFirst ? 'border-rule-soft bg-rule-soft text-[#6B7690]' : 'border-strong bg-paper text-ink hover:bg-tint'}`}
           >
             <Icon name="chevronLeft" className="size-[18px]" />
-            Previous
+            {t.take.previous}
           </button>
         </div>
         <div className="flex-1">
           {isLast ? (
             <button type="button" disabled={locked} onClick={onSubmit} className={`${footerButton} border-ink bg-ink text-paper hover:bg-ink-2 disabled:opacity-60`}>
-              Submit quiz
+              {t.take.submit}
             </button>
           ) : (
             <button type="button" onClick={onNext} className={`${footerButton} border-ink bg-ink text-paper hover:bg-ink-2`}>
-              Next
+              {t.take.next}
               <Icon name="chevronRight" className="size-[18px]" />
             </button>
           )}
@@ -78,6 +79,7 @@ export function QuestionNavigator({
   onGoTo: (index: number) => void
   onSubmit: () => void
 }) {
+  const { t } = useLanguage()
   const answered = questionIds.filter((id) => isAnswered(answers[id])).length
 
   return (
@@ -86,17 +88,17 @@ export function QuestionNavigator({
         <div aria-hidden className="h-1 w-10 self-center rounded-full bg-rule" />
         <div className="flex items-center justify-between">
           <h2 id="navigator-title" className="text-card font-bold">
-            Questions
+            {t.take.questionsButton}
           </h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="inline-flex size-11 items-center justify-center rounded-control text-ink hover:bg-tint">
+          <button type="button" aria-label={t.take.close} onClick={onClose} className="inline-flex size-11 items-center justify-center rounded-control text-ink hover:bg-tint">
             <Icon name="x" />
           </button>
         </div>
 
         <div className="flex flex-wrap gap-x-4 gap-y-2 text-meta text-ink-2">
-          <Legend swatch="bg-ink">Answered</Legend>
-          <Legend swatch="border-[1.5px] border-muted">Not answered</Legend>
-          <Legend swatch="border-[1.5px] border-muted shadow-[0_0_0_2px_#fff,0_0_0_3.5px_#1D2B4F]">Current</Legend>
+          <Legend swatch="bg-ink">{t.take.legendAnswered}</Legend>
+          <Legend swatch="border-[1.5px] border-muted">{t.take.legendNotAnswered}</Legend>
+          <Legend swatch="border-[1.5px] border-muted shadow-[0_0_0_2px_#fff,0_0_0_3.5px_#1D2B4F]">{t.take.legendCurrent}</Legend>
         </div>
 
         <ol className="grid grid-cols-5 justify-items-center gap-x-2 gap-y-3">
@@ -105,7 +107,7 @@ export function QuestionNavigator({
             const failed = answer?.status === 'failed'
             const filled = isAnswered(answer)
             const current = index === currentIndex
-            const state = failed ? 'not saved yet' : filled ? 'answered' : 'not answered'
+            const state = failed ? 'failed' : filled ? 'answered' : 'empty'
             const look = failed
               ? 'border-2 border-red bg-ink text-paper'
               : filled
@@ -115,7 +117,7 @@ export function QuestionNavigator({
               <li key={id}>
                 <button
                   type="button"
-                  aria-label={`Question ${index + 1}, ${state}`}
+                  aria-label={t.take.questionState(index + 1, state)}
                   aria-current={current ? 'step' : undefined}
                   onClick={() => onGoTo(index)}
                   className={`relative flex size-12 items-center justify-center rounded-full p-0 text-body font-semibold ${look} ${
@@ -136,17 +138,14 @@ export function QuestionNavigator({
 
         <div aria-hidden className="border-t border-rule" />
         <p className="text-small text-ink-2">
-          <strong className="text-ink">
-            <Num>{answered}</Num> answered
-          </strong>{' '}
-          · <Num>{questionIds.length - answered}</Num> not answered
+          <strong className="text-ink">{t.take.answeredCount(answered)}</strong> · {t.take.notAnsweredCount(questionIds.length - answered)}
         </p>
         <Button size="lg" className="w-full" disabled={locked} onClick={onSubmit}>
-          Submit quiz
+          {t.take.submit}
         </Button>
         <Link to="/student" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-control text-ink hover:bg-tint">
-          <span className="text-[15px] font-semibold underline underline-offset-[3px]">Leave for now</span>
-          <span className="text-[12px] text-muted">Answers are saved. The timer keeps running.</span>
+          <span className="text-[15px] font-semibold underline underline-offset-[3px]">{t.take.leave}</span>
+          <span className="text-[12px] text-muted">{t.take.leaveHint}</span>
         </Link>
       </div>
     </Dialog>
@@ -183,53 +182,46 @@ export function SubmitDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const { t } = useLanguage()
   return (
     <Dialog open={open} onClose={onCancel} role="alertdialog" labelledBy="submit-title" dismissible={canCancel}>
       <div className="flex flex-col gap-3.5">
         <h2 id="submit-title" className="text-[20px] font-bold">
-          Submit quiz?
+          {t.take.submitTitle}
         </h2>
 
         {unanswered.length > 0 ? (
           <div className="flex gap-2.5 rounded-option border border-amber-line bg-amber-bg p-3 text-[15px] text-ink">
             <Icon name="alert" className="mt-0.5 size-5 text-amber-ink" />
             <p>
-              <strong>
-                {unanswered.length === 1 ? '1 question isn’t answered' : `${unanswered.length} questions aren’t answered`}
-              </strong>{' '}
-              (<Num>{joinNumbers(unanswered)}</Num>). They’ll score 0.
+              <strong>{t.take.unansweredCount(unanswered.length)}</strong> {t.take.unansweredList(unanswered)}
             </p>
           </div>
         ) : (
           <p className="flex gap-2.5 text-[15px]">
             <Icon name="check" className="size-5 text-green" />
-            All questions are answered.
+            {t.take.allAnswered}
           </p>
         )}
 
         {pendingCount > 0 && (
           <p className="flex gap-2.5 text-small text-red">
             <Icon name="refresh" className="size-5" />
-            {pendingCount === 1 ? '1 answer is waiting to be sent.' : `${pendingCount} answers are waiting to be sent.`} It will be
-            sent before submitting.
+            {t.take.pendingBeforeSubmit(pendingCount)}
           </p>
         )}
 
         <ul className="flex flex-col gap-1.5 text-small text-ink-2">
-          <li>
-            {penaltyPercent > 0
-              ? `A wrong answer loses ${penaltyPercent}% of that question’s points.`
-              : 'There’s no negative marking on this quiz.'}
-          </li>
-          <li>You can’t change answers after submitting.</li>
+          <li>{penaltyPercent > 0 ? t.take.penaltyRule(penaltyPercent) : t.take.noPenalty}</li>
+          <li>{t.take.final}</li>
         </ul>
 
         <div className="flex flex-col gap-2.5 pt-1">
           <Button size="lg" loading={submitting} onClick={onConfirm}>
-            Submit quiz
+            {t.take.submit}
           </Button>
           <Button variant="secondary" size="lg" disabled={!canCancel} onClick={onCancel}>
-            Keep answering
+            {t.take.keepAnswering}
           </Button>
         </div>
       </div>
@@ -237,13 +229,9 @@ export function SubmitDialog({
   )
 }
 
-/** "4, 9 and 12" */
-function joinNumbers(numbers: number[]) {
-  return numbers.length <= 1 ? numbers.join('') : `${numbers.slice(0, -1).join(', ')} and ${numbers[numbers.length - 1]}`
-}
-
 /** At 0:00: answers are closed and the saved ones are being submitted. */
 export function TimeUpDialog({ resultHref, stillTrying }: { resultHref: string; stillTrying: boolean }) {
+  const { t } = useLanguage()
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-center bg-[rgb(29_43_79/0.48)]">
       <div
@@ -256,17 +244,15 @@ export function TimeUpDialog({ resultHref, stillTrying }: { resultHref: string; 
           <Icon name="hourglass" className="size-7" />
         </span>
         <h2 id="time-up-title" className="text-page font-bold">
-          Time’s up
+          {t.take.timeUp}
         </h2>
-        <p className="text-[15px] leading-[1.55] text-ink-2">
-          Answers are closed. Your saved answers are being submitted — you don’t need to do anything.
-        </p>
+        <p className="text-[15px] leading-[1.55] text-ink-2">{t.take.timeUpBody}</p>
         <p role="status" className="flex items-center gap-2 text-small text-muted">
           <Spinner className="size-4" />
-          {stillTrying ? 'Waiting for a connection…' : 'Submitting…'}
+          {stillTrying ? t.take.waitingConnection : t.take.submitting}
         </p>
         <ButtonLink to={resultHref} variant="secondary" size="lg" className="w-full" replace>
-          See your result
+          {t.take.seeResult}
         </ButtonLink>
       </div>
     </div>
@@ -274,24 +260,26 @@ export function TimeUpDialog({ resultHref, stillTrying }: { resultHref: string; 
 }
 
 export function ConnectionBanner({ pendingCount, onRetry }: { pendingCount: number; onRetry: () => void }) {
+  const { t } = useLanguage()
   return (
     <div role="alert" className="flex items-start gap-2.5 rounded-option border border-red-line bg-red-bg px-3.5 py-3">
       <Icon name="wifiOff" className="mt-px size-5 text-red" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="text-[15px] font-semibold text-red">Connection lost — retrying</p>
+        <p className="text-[15px] font-semibold text-red">{t.take.connectionLost}</p>
         <p className="text-small leading-normal text-ink-2">
-          Answers already saved are safe.
-          {pendingCount > 0 && ` ${plural(pendingCount, 'answer is', 'answers are')} waiting to be sent.`}
+          {t.take.savedSafe}
+          {pendingCount > 0 && t.take.waitingToSend(pendingCount)}
         </p>
       </div>
       <button type="button" onClick={onRetry} className="min-h-9 flex-none rounded-control border border-red-line bg-paper px-2.5 text-small font-semibold text-red">
-        Retry now
+        {t.take.retryNow}
       </button>
     </div>
   )
 }
 
 export function TimeNoticeBanner({ notice }: { notice: TimeNotice }) {
+  const { t } = useLanguage()
   const final = notice === '1min'
   return (
     <div
@@ -301,7 +289,7 @@ export function TimeNoticeBanner({ notice }: { notice: TimeNotice }) {
       }`}
     >
       <Icon name="clock" className="size-[18px]" />
-      {noticeText[notice]}
+      {final ? t.take.notice1 : t.take.notice5}
     </div>
   )
 }

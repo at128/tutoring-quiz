@@ -1,3 +1,5 @@
+import { useT } from '../i18n/LanguageContext'
+
 export function Spinner({ className = 'size-5', label }: { className?: string; label?: string }) {
   return (
     <svg
@@ -14,10 +16,11 @@ export function Spinner({ className = 'size-5', label }: { className?: string; l
 }
 
 /** Centred spinner for a whole page or section while it loads. */
-export function PageSpinner({ label = 'Loading' }: { label?: string }) {
+export function PageSpinner({ label }: { label?: string }) {
+  const t = useT()
   return (
     <div className="flex justify-center py-16 text-muted">
-      <Spinner className="size-7" label={label} />
+      <Spinner className="size-7" label={label ?? t.app.loading} />
     </div>
   )
 }

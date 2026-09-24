@@ -12,6 +12,7 @@ import { Icon } from '../../components/Icon'
 import { BackLink, PageShell } from '../../components/PageShell'
 import { EmptyState, ErrorState, NotAvailableState, Skeleton } from '../../components/States'
 import { formatPercent, formatScore } from '../../lib/format'
+import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTime, formatShortDate } from '../../lib/time'
 import { localTimeZoneLabel } from './editor/editorForm'
 import {
@@ -20,18 +21,18 @@ import {
   filterRows,
   percentOf,
   showingLine,
-  SORT_OPTIONS,
+  SORT_KEYS,
   sortRows,
   statusCounts,
   type ResultRow,
   type SortKey,
 } from './results/resultsView'
 
-const BACK = { to: '/teacher', label: 'My quizzes' }
 const MOBILE_PAGE = 10
 
 /** Per-student results with a whole-quiz summary (prototype: "Quiz results", "Quiz results, mobile"). */
 export function ResultsPage() {
+  const { t } = useLanguage()
   const { quizId = '' } = useParams()
   const results = useQuery({
     queryKey: teacherKeys.results(quizId),
@@ -40,20 +41,20 @@ export function ResultsPage() {
 
   return (
     <PageShell width="teacher" mainClassName="gap-[18px] pt-5 pb-10 md:pt-8 md:pb-12">
-      <BackLink {...BACK} />
+      <BackLink to="/teacher" label={t.shell.myQuizzes} />
       {results.isPending ? (
-        <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading results">
+        <div className="flex flex-col gap-4" aria-busy="true" aria-label={t.results.loading}>
           <Skeleton className="h-8 w-2/3" />
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       ) : results.isError ? (
         isApiError(results.error, 'not_found') ? (
-          <NotAvailableState title="Quiz not found" backTo="/teacher" backLabel="Back to my quizzes">
-            It may have been deleted, or it isn’t one of your quizzes.
+          <NotAvailableState title={t.editor.notFoundTitle} backTo="/teacher" backLabel={t.editor.backToMyQuizzes}>
+            {t.editor.notFoundBody}
           </NotAvailableState>
         ) : (
-          <ErrorState error={results.error} onRetry={() => void results.refetch()} title="Couldn’t load the results" />
+          <ErrorState error={results.error} onRetry={() => void results.refetch()} title={t.results.loadError} />
         )
       ) : (
         <Results data={results.data} refreshing={results.isFetching} onRefresh={() => void results.refetch()} />
@@ -63,15 +64,17 @@ export function ResultsPage() {
 }
 
 function Results({ data, refreshing, onRefresh }: { data: QuizResults; refreshing: boolean; onRefresh: () => void }) {
+  const { t, lang } = useLanguage()
+  const m = t.results
   const [classRoom, setClassRoom] = useState<string>(ALL)
   const [sort, setSort] = useState<SortKey>('class')
   const [showAll, setShowAll] = useState(false)
   const { quiz, summary } = data
-  const rows = sortRows(filterRows(data.rows, classRoom), sort)
+  const rows = sortRows(filterRows(data.rows, classRoom), sort, lang)
   const counts = statusCounts(data.rows)
   const classes = [...new Set(data.rows.map((r) => r.classRoom))]
   const closed = quiz.state === 'Closed'
-  const marking = quiz.wrongAnswerPenaltyPercent === 0 ? 'no negative marking' : `−${quiz.wrongAnswerPenaltyPercent}% per wrong answer`
+  const marking = quiz.wrongAnswerPenaltyPercent === 0 ? m.markingNone : m.markingPer(quiz.wrongAnswerPenaltyPercent)
   const stat = (value: number | null) => (value === null ? '—' : formatScore(value))
   const statPercent = (value: number | null) => (value === null ? undefined : formatPercent(percentOf(value, quiz.maxScore) ?? 0))
 
@@ -87,63 +90,59 @@ function Results({ data, refreshing, onRefresh }: { data: QuizResults; refreshin
             {quiz.title}
           </h1>
           <p className="text-small leading-normal text-muted">
-            Results · {closed ? `closed ${formatShortDate(quiz.closesAt)}` : `closes ${formatDateTime(quiz.closesAt)}`}
-            <span className="hidden md:inline">
-              {' '}
-              · <Num>{quiz.durationMinutes}</Num> min · {marking}
-            </span>{' '}
-            · max <Num>{quiz.maxScore}</Num> points
+            {m.results} · {closed ? m.closedOn(formatShortDate(quiz.closesAt, lang)) : m.closesOn(formatDateTime(quiz.closesAt, lang))}
+            <span className="hidden md:inline"> · {m.minutesShort(quiz.durationMinutes)} · {marking}</span> · {m.maxPoints(quiz.maxScore)}
           </p>
         </div>
         <Button variant="secondary" className="hidden flex-none md:inline-flex" loading={refreshing} onClick={onRefresh}>
           {!refreshing && <Icon name="refresh" className="size-[18px]" />}
-          Refresh
+          {m.refresh}
         </Button>
       </div>
 
       {/* Summary covers every assigned class (the API's numbers); the filter below only affects the list. */}
       <div className="hidden grid-cols-6 rounded-sheet border border-rule bg-paper md:grid">
-        <Tile label="Assigned" value={String(summary.assignedCount)} note={classes.join(' · ')} />
-        <Tile label="Started" value={String(summary.startedCount)} note={`${counts.inProgress} in progress`} />
-        <Tile label="Finalized" value={String(summary.finalizedCount)} note={`${counts.submitted} submitted · ${counts.expired} expired`} />
+        <Tile label={m.assigned} value={String(summary.assignedCount)} note={classes.join(' · ')} />
+        <Tile label={m.started} value={String(summary.startedCount)} note={m.inProgress(counts.inProgress)} />
+        <Tile label={m.finalized} value={String(summary.finalizedCount)} note={m.submittedExpired(counts.submitted, counts.expired)} />
         <Tile
-          label="Average"
+          label={m.average}
           value={stat(summary.averageScore)}
-          note={summary.averagePercentage === null ? undefined : `${formatPercent(summary.averagePercentage)} of ${quiz.maxScore}`}
+          note={summary.averagePercentage === null ? undefined : m.percentOfMax(formatPercent(summary.averagePercentage), quiz.maxScore)}
         />
-        <Tile label="Highest" value={stat(summary.highestScore)} note={statPercent(summary.highestScore)} />
-        <Tile label="Lowest" value={stat(summary.lowestScore)} note={statPercent(summary.lowestScore)} />
+        <Tile label={m.highest} value={stat(summary.highestScore)} note={statPercent(summary.highestScore)} />
+        <Tile label={m.lowest} value={stat(summary.lowestScore)} note={statPercent(summary.lowestScore)} />
       </div>
       <div className="grid grid-cols-3 rounded-sheet border border-rule bg-paper md:hidden">
-        <Tile label="Assigned" value={String(summary.assignedCount)} />
-        <Tile label="Finalized" value={String(summary.finalizedCount)} note={counts.expired > 0 ? `${counts.expired} expired` : undefined} />
+        <Tile label={m.assigned} value={String(summary.assignedCount)} />
+        <Tile label={m.finalized} value={String(summary.finalizedCount)} note={counts.expired > 0 ? m.expired(counts.expired) : undefined} />
         {closed ? (
-          <Tile label="Missed" value={String(counts.missed)} />
+          <Tile label={m.missed} value={String(counts.missed)} />
         ) : (
-          <Tile label="Started" value={String(summary.startedCount)} note={counts.inProgress > 0 ? `${counts.inProgress} in progress` : undefined} />
+          <Tile label={m.started} value={String(summary.startedCount)} note={counts.inProgress > 0 ? m.inProgress(counts.inProgress) : undefined} />
         )}
-        <Tile label="Average" value={stat(summary.averageScore)} note={summary.averagePercentage === null ? undefined : formatPercent(summary.averagePercentage)} rowStart />
-        <Tile label="Highest" value={stat(summary.highestScore)} />
-        <Tile label="Lowest" value={stat(summary.lowestScore)} />
+        <Tile label={m.average} value={stat(summary.averageScore)} note={summary.averagePercentage === null ? undefined : formatPercent(summary.averagePercentage)} rowStart />
+        <Tile label={m.highest} value={stat(summary.highestScore)} />
+        <Tile label={m.lowest} value={stat(summary.lowestScore)} />
       </div>
       <p className="hidden text-small leading-normal text-muted md:block">
-        Summary covers all assigned classes. Averages use finalized attempts only. Times are {localTimeZoneLabel()}.
+        {m.summaryNote(localTimeZoneLabel(t.editor))}
       </p>
 
       {data.rows.length === 0 ? (
-        <EmptyState icon="users" title="No students assigned">
-          The classes on this quiz have no students yet.
+        <EmptyState icon="users" title={m.noStudentsTitle}>
+          {m.noStudentsBody}
         </EmptyState>
       ) : (
         <>
           <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
             <div className="flex flex-col gap-1.5">
-              <span className="text-small font-semibold">Class</span>
-              <Segmented label="Filter by class" options={classFilters(data.rows)} value={classRoom} onChange={setClassRoom} className="md:w-[420px]" />
+              <span className="text-small font-semibold">{m.classLabel}</span>
+              <Segmented label={m.filterLabel} options={classFilters(data.rows, m)} value={classRoom} onChange={setClassRoom} className="md:w-[420px]" />
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="results-sort" className="text-small font-semibold">
-                Sort by
+                {m.sortBy}
               </label>
               <select
                 id="results-sort"
@@ -151,16 +150,16 @@ function Results({ data, refreshing, onRefresh }: { data: QuizResults; refreshin
                 onChange={(event) => setSort(event.target.value as SortKey)}
                 className="h-12 w-full rounded-control border border-strong bg-paper px-3 text-body text-ink md:h-11 md:w-[240px]"
               >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {SORT_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {m.sort[key]}
                   </option>
                 ))}
               </select>
             </div>
           </div>
           <p className="text-small leading-normal text-muted" aria-live="polite">
-            {showingLine(rows.length, classRoom)}
+            {showingLine(rows.length, classRoom, m)}
           </p>
 
           <ResultsTable rows={rows} maxScore={quiz.maxScore} classRoom={classRoom} sort={sort} onSort={setSort} />
@@ -171,7 +170,7 @@ function Results({ data, refreshing, onRefresh }: { data: QuizResults; refreshin
             ))}
             {!showAll && rows.length > MOBILE_PAGE && (
               <button type="button" onClick={() => setShowAll(true)} className="min-h-11 text-small text-muted underline-offset-[3px] hover:underline">
-                + {rows.length - MOBILE_PAGE} more
+                {m.more(rows.length - MOBILE_PAGE)}
               </button>
             )}
           </div>
@@ -212,18 +211,20 @@ function ResultsTable({
   sort: SortKey
   onSort: (sort: SortKey) => void
 }) {
+  const { t, lang } = useLanguage()
+  const m = t.results
   return (
-    <div role="table" aria-label={classRoom === ALL ? 'Results' : `Results for ${classRoom}`} className="hidden rounded-sheet border border-rule bg-paper md:block">
+    <div role="table" aria-label={classRoom === ALL ? m.tableLabel : m.tableLabelFor(classRoom)} className="hidden rounded-sheet border border-rule bg-paper md:block">
       <div role="row" className={`${tableColumns} rounded-t-sheet border-b border-rule bg-desk px-5 py-3`}>
         <SortHeader active={sort === 'name'} onClick={() => onSort(sort === 'name' ? 'class' : 'name')}>
-          Student
+          {m.student}
         </SortHeader>
-        <Header>Class</Header>
-        <Header>Status</Header>
-        <Header>Started</Header>
-        <Header>Finished</Header>
+        <Header>{m.className}</Header>
+        <Header>{m.status}</Header>
+        <Header>{m.startedCol}</Header>
+        <Header>{m.finished}</Header>
         <SortHeader end active={sort === 'scoreHigh' || sort === 'scoreLow'} onClick={() => onSort(sort === 'scoreHigh' ? 'scoreLow' : 'scoreHigh')}>
-          Score
+          {m.score}
         </SortHeader>
         <Header end>%</Header>
       </div>
@@ -242,10 +243,10 @@ function ResultsTable({
             <Badge kind={row.status} />
           </div>
           <div role="cell" className="text-small text-ink-2">
-            {row.startedAt ? formatDateTime(row.startedAt) : '—'}
+            {row.startedAt ? formatDateTime(row.startedAt, lang) : '—'}
           </div>
           <div role="cell" className="text-small text-ink-2">
-            {row.finalizedAt ? formatDateTime(row.finalizedAt) : '—'}
+            {row.finalizedAt ? formatDateTime(row.finalizedAt, lang) : '—'}
           </div>
           <div role="cell" className="text-end text-[15px] font-bold">
             {row.score === null ? (
@@ -289,6 +290,8 @@ function SortHeader({ children, active, onClick, end = false }: { children: Reac
 }
 
 function ResultCard({ row }: { row: ResultRow }) {
+  const { t, lang } = useLanguage()
+  const m = t.results
   return (
     <article className="flex flex-col gap-2 rounded-sheet border border-rule bg-paper px-4 py-3.5">
       <div className="flex items-start justify-between gap-2.5">
@@ -315,10 +318,10 @@ function ResultCard({ row }: { row: ResultRow }) {
         ) : (
           <span className="text-small text-muted">
             {row.status === 'Missed'
-              ? 'No attempt before the quiz closed'
+              ? m.noAttempt
               : row.status === 'InProgress' && row.startedAt
-                ? `Started ${formatDateTime(row.startedAt)} · in progress`
-                : 'Not started yet'}
+                ? m.startedInProgress(formatDateTime(row.startedAt, lang))
+                : m.notStarted}
           </span>
         )}
       </div>

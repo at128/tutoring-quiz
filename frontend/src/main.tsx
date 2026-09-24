@@ -11,6 +11,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router/dom'
 import { ApiError } from './api/client'
+import { ar } from './i18n/ar'
+import { en } from './i18n/en'
+import { applyToDocument, initialLang } from './i18n/lang'
+import { LanguageProvider } from './i18n/LanguageProvider'
 import { router } from './routes'
 
 const queryClient = new QueryClient({
@@ -24,13 +28,19 @@ const queryClient = new QueryClient({
   },
 })
 
+// Before the first render, so the first paint already has the right direction and font.
+const lang = initialLang()
+applyToDocument(lang, (lang === 'ar' ? ar : en).app.name)
+
 const root = document.getElementById('root')
 if (!root) throw new Error('Missing #root element in index.html')
 
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <LanguageProvider initial={lang}>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </LanguageProvider>
   </StrictMode>,
 )

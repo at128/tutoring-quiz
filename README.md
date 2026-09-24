@@ -1,6 +1,6 @@
 # Tutoring Quiz: online quizzes for Nour's tutoring centre
 
-Students log in on their phones, take a timed multiple-choice quiz once, and see their score. Teachers create quizzes (with or without negative marking), schedule them for one or more classes, and see the results. Arabic names and Arabic quizzes work throughout.
+Students log in on their phones, take a timed multiple-choice quiz once, and see their score. Teachers create quizzes (with or without negative marking), schedule them for one or more classes, and see the results. The interface is in **Arabic or English**: it follows the device, and the «العربية / English» button switches it. Arabic names and Arabic quizzes work throughout.
 
 **Live demo:** https://quiz.just-atta.site (same sample accounts as below). The demo is shared, so someone may already have used a student account. Use the reserved accounts listed below, or run it locally with one command.
 

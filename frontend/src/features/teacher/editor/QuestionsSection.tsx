@@ -4,7 +4,9 @@ import { Num } from '../../../components/Auto'
 import { Icon } from '../../../components/Icon'
 import { optionLabel } from '../../../lib/dir'
 import type { EditorValues, Problems } from './editorForm'
-import { emptyQuestion, LIMITS, NEEDS_CORRECT, problemsOfQuestion } from './editorForm'
+import { useLanguage } from '../../../i18n/LanguageContext'
+import type { Messages } from '../../../i18n/en'
+import { emptyQuestion, LIMITS, problemsOfQuestion } from './editorForm'
 import { FieldProblems, TextArea, TextInput } from './fields'
 
 type Props = { form: UseFormReturn<EditorValues>; problems: Problems }
@@ -14,6 +16,8 @@ const iconButton =
 
 /** Question list: one card per open question, one ruled row per collapsed question, and "Add question". */
 export function QuestionsSection({ form, problems }: Props) {
+  const { t } = useLanguage()
+  const m = t.editor
   const { control, watch } = form
   const questions = useFieldArray({ control, name: 'questions' })
   const values = watch('questions')
@@ -36,14 +40,12 @@ export function QuestionsSection({ form, problems }: Props) {
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <h2 className="text-card font-bold">
-          Questions{' '}
+          {m.questions}{' '}
           <span className="font-medium text-muted">
             <Num>{questions.fields.length}</Num>
           </span>
         </h2>
-        <span className="text-small text-ink-2">
-          Total <Num>{totalPoints}</Num> points
-        </span>
+        <span className="text-small text-ink-2">{m.totalPoints(totalPoints)}</span>
       </div>
       <FieldProblems messages={problems.questions} />
 
@@ -64,7 +66,7 @@ export function QuestionsSection({ form, problems }: Props) {
             index={index}
             text={values[index]?.text ?? ''}
             points={values[index]?.points ?? ''}
-            problem={collapsedProblem(problems, index)}
+            problem={collapsedProblem(problems, index, m)}
             onOpen={() => openQuestion(values[index]?.uid ?? field.id)}
           />
         ),
@@ -77,7 +79,7 @@ export function QuestionsSection({ form, problems }: Props) {
           className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-option border-[1.5px] border-dashed border-strong bg-paper text-body font-semibold text-ink hover:bg-tint"
         >
           <Icon name="plus" className="size-[18px]" />
-          Add question
+          {m.addQuestion}
         </button>
       )}
     </div>
@@ -85,13 +87,14 @@ export function QuestionsSection({ form, problems }: Props) {
 }
 
 /** Short label for a closed question with problems ("Needs a correct answer"). */
-function collapsedProblem(problems: Problems, index: number): string | null {
+function collapsedProblem(problems: Problems, index: number, m: Messages['editor']): string | null {
   const entries = problemsOfQuestion(problems, index)
   if (entries.length === 0) return null
-  return entries.some(([, messages]) => messages.includes(NEEDS_CORRECT)) ? 'Needs a correct answer' : 'Needs attention'
+  return entries.some(([, messages]) => messages.includes(m.needsCorrect)) ? m.needsCorrectShort : m.needsAttention
 }
 
 function CollapsedQuestion({ index, text, points, problem, onOpen }: { index: number; text: string; points: string; problem: string | null; onOpen: () => void }) {
+  const { t } = useLanguage()
   const pts = Number.parseInt(points, 10) || 0
   return (
     <button
@@ -106,7 +109,7 @@ function CollapsedQuestion({ index, text, points, problem, onOpen }: { index: nu
         <Num>{index + 1}</Num>
       </span>
       <span dir="auto" className="min-w-0 flex-1 truncate text-[15px]">
-        {text || <span className="text-muted">Untitled question</span>}
+        {text || <span className="text-muted">{t.editor.untitled}</span>}
       </span>
       {problem && (
         <span className="flex flex-none items-center gap-1 text-meta font-semibold text-red">
@@ -114,9 +117,7 @@ function CollapsedQuestion({ index, text, points, problem, onOpen }: { index: nu
           {problem}
         </span>
       )}
-      <span className="flex-none text-meta text-muted">
-        <Num>{pts}</Num> {pts === 1 ? 'pt' : 'pts'}
-      </span>
+      <span className="flex-none text-meta text-muted">{t.editor.ptsShort(pts)}</span>
       <Icon name="chevronRight" className="size-[18px] text-muted" />
     </button>
   )
@@ -132,6 +133,8 @@ type EditorProps = {
 }
 
 function QuestionEditor({ form, index, count, problems, onMove, onRemove }: EditorProps) {
+  const { t } = useLanguage()
+  const m = t.editor
   const { control, register, watch, setValue } = form
   const options = useFieldArray({ control, name: `questions.${index}.options` })
   const prefix = `questions[${index}]`
@@ -156,15 +159,16 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <h3 id={`q${index}-title`} className="text-body font-bold">
-            Question <Num>{number}</Num>
+            {m.questionN(number)}
           </h3>
           <div className="flex items-center gap-2">
             <label htmlFor={`q${index}-points`} className="text-small text-ink-2">
-              Points
+              {m.pointsLabel}
             </label>
             <TextInput
               id={`q${index}-points`}
               type="number"
+              lang="en"
               inputMode="numeric"
               min={LIMITS.pointsMin}
               max={LIMITS.pointsMax}
@@ -176,13 +180,13 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
           </div>
         </div>
         <div className="flex gap-0.5">
-          <button type="button" aria-label={`Move question ${number} up`} disabled={index === 0} onClick={() => onMove(index - 1)} className={iconButton}>
+          <button type="button" aria-label={m.moveUp(number)} disabled={index === 0} onClick={() => onMove(index - 1)} className={iconButton}>
             <Icon name="arrowUp" className="size-[18px]" />
           </button>
-          <button type="button" aria-label={`Move question ${number} down`} disabled={index === count - 1} onClick={() => onMove(index + 1)} className={iconButton}>
+          <button type="button" aria-label={m.moveDown(number)} disabled={index === count - 1} onClick={() => onMove(index + 1)} className={iconButton}>
             <Icon name="arrowDown" className="size-[18px]" />
           </button>
-          <button type="button" aria-label={`Delete question ${number}`} onClick={onRemove} className={`${iconButton} text-red hover:bg-red-bg`}>
+          <button type="button" aria-label={m.deleteQuestion(number)} onClick={onRemove} className={`${iconButton} text-red hover:bg-red-bg`}>
             <Icon name="trash" className="size-[18px]" />
           </button>
         </div>
@@ -191,16 +195,16 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor={`q${index}-text`} className="text-small font-semibold">
-          Question text
+          {m.questionText}
         </label>
         <TextArea id={`q${index}-text`} rows={2} large invalid={!!problems[`${prefix}.text`]} {...register(`questions.${index}.text`)} />
         <FieldProblems messages={problems[`${prefix}.text`]} />
       </div>
 
-      <div className="flex flex-col gap-2" role="radiogroup" aria-label={`Correct answer for question ${number}`}>
+      <div className="flex flex-col gap-2" role="radiogroup" aria-label={m.correctFor(number)}>
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-small font-semibold">Options</span>
-          <span className="text-meta text-muted">Select the correct answer · 2–6 options</span>
+          <span className="text-small font-semibold">{m.options}</span>
+          <span className="text-meta text-muted">{m.optionsHint}</span>
         </div>
 
         {options.fields.map((option, j) => {
@@ -214,13 +218,13 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
                   isCorrect ? 'border-2 border-green bg-green-bg px-[7px] py-[5px]' : 'border border-rule bg-paper px-2 py-1.5'
                 }`}
               >
-                <label className="flex size-11 flex-none cursor-pointer items-center justify-center" title="Mark as correct">
+                <label className="flex size-11 flex-none cursor-pointer items-center justify-center" title={m.markCorrect}>
                   <input
                     type="radio"
                     value={String(j)}
                     checked={isCorrect}
                     onChange={() => setValue(`questions.${index}.correct`, String(j), { shouldDirty: true })}
-                    aria-label={`Option ${letter} is the correct answer`}
+                    aria-label={m.optionIsCorrect(letter)}
                     className="size-[22px] accent-green"
                   />
                 </label>
@@ -228,7 +232,7 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
                   {letter}
                 </span>
                 <TextInput
-                  aria-label={`Option ${letter} text`}
+                  aria-label={m.optionText(letter)}
                   dir="auto"
                   compact
                   invalid={!!problems[optionKey]}
@@ -238,12 +242,12 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
                 {isCorrect && (
                   <span className="hidden flex-none items-center gap-1 text-[12px] font-bold text-green sm:inline-flex">
                     <Icon name="check" className="size-3.5" strokeWidth={2.2} />
-                    Correct
+                    {m.correct}
                   </span>
                 )}
                 <button
                   type="button"
-                  aria-label={`Remove option ${letter}`}
+                  aria-label={m.removeOption(letter)}
                   disabled={options.fields.length <= LIMITS.optionsMin}
                   onClick={() => removeOption(j)}
                   className={`${iconButton} text-ink-2`}
@@ -257,9 +261,7 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
         })}
 
         {problems[`${prefix}.options`] && (
-          <FieldProblems
-            messages={problems[`${prefix}.options`].map((m) => (m === NEEDS_CORRECT ? 'Choose the correct answer for this question.' : m))}
-          />
+          <FieldProblems messages={problems[`${prefix}.options`]} />
         )}
 
         {options.fields.length < LIMITS.optionsMax && (
@@ -269,7 +271,7 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
             className="inline-flex min-h-11 items-center gap-2 self-start rounded-control px-[18px] text-body font-semibold text-ink underline underline-offset-[3px] hover:bg-tint"
           >
             <Icon name="plus" className="size-[18px]" />
-            Add option
+            {m.addOption}
           </button>
         )}
       </div>
