@@ -7,7 +7,9 @@ import { QuizListPage } from './features/student/QuizListPage'
 import { ResultPage } from './features/student/ResultPage'
 import { StartQuizPage } from './features/student/StartQuizPage'
 import { TakeQuizPage } from './features/student/TakeQuizPage'
+import { QuizEditorPage } from './features/teacher/QuizEditorPage'
 import { TeacherQuizListPage } from './features/teacher/QuizListPage'
+import { ResultsPage as TeacherResultsPage } from './features/teacher/ResultsPage'
 
 export const router = createBrowserRouter([
   {
@@ -28,7 +30,12 @@ export const router = createBrowserRouter([
       {
         path: '/teacher',
         element: <RequireRole role="Teacher" />,
-        children: [{ index: true, element: <TeacherQuizListPage /> }],
+        children: [
+          { index: true, element: <TeacherQuizListPage /> },
+          { path: 'quizzes/new', element: <QuizEditorPage /> },
+          { path: 'quizzes/:quizId/edit', element: <QuizEditorPage /> },
+          { path: 'quizzes/:quizId/results', element: <TeacherResultsPage /> },
+        ],
       },
       { path: '*', element: <NotFoundPage /> },
     ],
