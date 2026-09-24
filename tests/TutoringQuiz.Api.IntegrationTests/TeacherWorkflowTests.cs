@@ -162,6 +162,29 @@ public sealed class TeacherWorkflowTests(TestAppFactory factory) : IClassFixture
         Assert.Equal("Closed", lateBody.GetProperty("quiz").GetProperty("state").GetString());
     }
 
+    [Fact] // M4-04
+    public async Task QuizList_CountsAnAbandonedAttemptAsFinalized_OnceItsDeadlinePasses()
+    {
+        var data = await TestData.CreateAsync(factory);
+        using var teacher = await TestData.LoginAsync(factory, data.Teacher);
+        using var student = await TestData.LoginAsync(factory, data.Student);
+        using (var started = await student.PostAsync($"/api/student/quizzes/{data.Quiz.Id}/attempt", null))
+            Assert.Equal(HttpStatusCode.Created, started.StatusCode);
+
+        Assert.Equal((1, 0), await CountsAsync());
+        factory.Clock.Advance(TimeSpan.FromMinutes(20));
+        Assert.Equal((1, 0), await CountsAsync()); // at the deadline the attempt still runs
+        factory.Clock.Advance(TimeSpan.FromTicks(1));
+        Assert.Equal((1, 1), await CountsAsync()); // no one opened the attempt or the results
+
+        async Task<(int Started, int Finalized)> CountsAsync()
+        {
+            using var list = await teacher.GetAsync("/api/teacher/quizzes");
+            var quiz = (await JsonAsync(list)).EnumerateArray().Single(q => q.GetProperty("id").GetGuid() == data.Quiz.Id);
+            return (quiz.GetProperty("startedCount").GetInt32(), quiz.GetProperty("finalizedCount").GetInt32());
+        }
+    }
+
     [Fact]
     public async Task PublishedQuiz_CannotBeUpdatedToEmptyQuestions()
     {

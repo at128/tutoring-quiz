@@ -24,6 +24,9 @@ app.UseExceptionHandler();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+// CSRF: API changes only from this site's own pages.
+app.UseSameOriginApi();
+
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();

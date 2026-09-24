@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { QuizEditorView } from '../../../api/types'
 import { en } from '../../../i18n/en'
-import { fromLocalInput, fromView, instantOf, toLocalInput, toUpsert, validate } from './editorForm'
+import { fromLocalInput, fromView, instantOf, toLocalInput, toUpsert, validate, westernDigits } from './editorForm'
 
 afterEach(() => vi.unstubAllEnvs())
 
@@ -50,5 +50,34 @@ describe('teacher local-time edge cases', () => {
     vi.stubEnv('TZ', 'UTC')
     const values = { ...fromView(savedQuiz('2026-09-24T10:00:45.123Z', '2026-10-01T10:00:00Z')), opensAt: '2026-09-24T11:30' }
     expect(toUpsert(values).opensAt).toBe('2026-09-24T11:30:00.000Z')
+  })
+})
+
+describe('numbers typed on an Arabic keyboard', () => {
+  const quiz = savedQuiz('2026-09-24T10:00:00Z', '2026-10-01T10:00:00Z')
+
+  it('reads Arabic-Indic and Persian digits as 0-9', () => {
+    expect(westernDigits('٠١٢٣٤٥٦٧٨٩')).toBe('0123456789')
+    expect(westernDigits('۰۱۲۳۴۵۶۷۸۹')).toBe('0123456789')
+    expect(westernDigits('2٠')).toBe('20')
+  })
+
+  it('saves ٢٥ minutes, ٣ points and a custom ٣٣ % as 25, 3 and 33', () => {
+    const base = fromView(quiz)
+    const values = {
+      ...base,
+      durationMinutes: '٢٥',
+      penalty: 'custom' as const,
+      customPenalty: '٣٣',
+      questions: base.questions.map((q) => ({ ...q, points: ' ٣ ' })),
+    }
+    expect(validate(values, 'publish', Date.parse('2026-09-24T09:00:00Z'), en.editor)).toEqual({})
+    expect(toUpsert(values)).toMatchObject({ durationMinutes: 25, wrongAnswerPenaltyPercent: 33, questions: [{ points: 3 }] })
+  })
+
+  it('still rejects what is not a whole number', () => {
+    const values = { ...fromView(quiz), durationMinutes: '٢.٥' }
+    expect(validate(values, 'save', Date.parse('2026-09-24T09:00:00Z'), en.editor)).toHaveProperty('durationMinutes')
+    expect(validate({ ...values, durationMinutes: 'عشرون' }, 'save', 0, en.editor)).toHaveProperty('durationMinutes')
   })
 })

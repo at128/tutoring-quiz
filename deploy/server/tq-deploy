@@ -4,7 +4,10 @@
 #
 #   tq-deploy poll              (timer, every minute) deploy main's head once its CI run has succeeded
 #   tq-deploy deploy <sha>      deploy a commit of main by hand (e.g. to retry one), CI not checked
-#   tq-deploy reset-demo        wipe the demo database and reseed it, keeping the live commit
+#   tq-deploy reset-demo        wipe the demo database and reseed it, keeping the live commit (backs up first)
+#   tq-deploy backup [label]    consistent copy of the database into /opt/tutoring-quiz/backups (daily timer, and
+#                               automatically before every deploy, reset and restore); keeps the newest 30
+#   tq-deploy restore <file>    put a backup back (the current data is backed up first)
 #   tq-deploy status            print the live commit
 set -Eeuo pipefail
 umask 022
@@ -12,6 +15,11 @@ umask 022
 readonly ROOT=/opt/tutoring-quiz
 readonly SRC=$ROOT/src
 readonly STATE=$ROOT/state
+readonly BACKUPS=$ROOT/backups
+readonly KEEP_BACKUPS=30
+readonly VOLUME=tutoring-quiz_tq-data # docker-compose.yml's tq-data volume: the SQLite file and the cookie keys
+readonly DB_FILE=tutoringquiz.db
+readonly BACKUP_IMAGE=python:3.13-alpine # only runs SQLite's backup; pulled once by install.sh
 readonly PROJECT=tutoring-quiz
 readonly IMAGE=tutoring-quiz
 readonly HOST=quiz.just-atta.site
@@ -66,6 +74,8 @@ deploy() {
   log "deploying $sha (live: ${previous:-nothing})"
   git -C "$SRC" checkout --quiet --detach "$sha"
   compose "$sha" build --pull
+  # The new commit may migrate the database: keep a copy from just before it starts.
+  backup "before-${sha:0:7}" || log "backup before the deploy failed; deploying anyway"
   start "$sha"
 
   if healthy; then
@@ -118,10 +128,70 @@ poll() {
   esac
 }
 
+# Data directory of the volume, or nothing before the first deploy.
+volume_dir() { docker volume inspect "$VOLUME" --format '{{.Mountpoint}}' 2>/dev/null || true; }
+
+# SQLite's online backup API: a consistent copy even while the app is writing, then an integrity check.
+# It runs in a throwaway container as the app's user, with the volume mounted and no network, so any file SQLite
+# adds next to the database (the WAL index) belongs to the app. Every step is checked explicitly, because a
+# deploy calls this in a `||` list, where bash's errexit is off.
+backup() {
+  local label=${1:-manual} dir owner tmp out
+  [[ $label =~ ^[a-z0-9-]{1,40}$ ]] || { log "backup label: lowercase letters, digits and dashes only"; return 1; }
+  dir=$(volume_dir)
+  [[ -n $dir && -f $dir/$DB_FILE ]] || { log "backup skipped: no database yet"; return 0; }
+  owner=$(stat -c %u:%g "$dir/$DB_FILE") || return 1
+  tmp=$(mktemp -d) || return 1
+  out=$BACKUPS/$DB_FILE.$(date -u +%Y%m%dT%H%M%SZ).$label.gz
+  if chown "$owner" "$tmp" &&
+    docker run --rm --network none --user "$owner" -v "$VOLUME:/data" -v "$tmp:/out" "$BACKUP_IMAGE" python3 -c '
+import sqlite3, sys
+source = sqlite3.connect("file:/data/" + sys.argv[1] + "?mode=ro", uri=True, timeout=30)
+copy = sqlite3.connect("/out/copy.db")
+source.backup(copy)
+check = copy.execute("pragma integrity_check").fetchone()[0]
+copy.close(); source.close()
+sys.exit(0 if check == "ok" else "integrity check: " + check)' "$DB_FILE" &&
+    install -d -o root -g root -m 700 "$BACKUPS" &&
+    gzip -c "$tmp/copy.db" >"$out.part" && mv -f "$out.part" "$out"; then
+    rm -rf "$tmp"
+  else
+    rm -rf "$tmp" "$out.part"
+    log "backup FAILED ($label)"
+    return 1
+  fi
+  ls -1t "$BACKUPS"/"$DB_FILE".*.gz | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f
+  log "backup: $out"
+}
+
+restore() {
+  local file=$1 sha dir owner
+  [[ -f $file ]] || die "no such backup: $file"
+  gzip -t "$file" || die "not a readable gzip file: $file"
+  sha=$(live_commit)
+  [[ -n $sha ]] || die "nothing is deployed yet"
+  dir=$(volume_dir)
+  [[ -n $dir && -f $dir/$DB_FILE ]] || die "no database in the data volume $VOLUME"
+  backup before-restore || die "couldn't back up the current data, so nothing was restored"
+  owner=$(stat -c %u:%g "$dir/$DB_FILE")
+  log "restoring $file (live: $sha)"
+  git -C "$SRC" checkout --quiet --detach "$sha"
+  compose "$sha" stop app
+  gunzip -c "$file" >"$dir/$DB_FILE.restoring"
+  chown "$owner" "$dir/$DB_FILE.restoring"
+  # A journal left next to the old file must never be applied to the restored one.
+  rm -f "$dir/$DB_FILE-wal" "$dir/$DB_FILE-shm" "$dir/$DB_FILE-journal"
+  mv -f "$dir/$DB_FILE.restoring" "$dir/$DB_FILE"
+  start "$sha"
+  healthy || die "unhealthy after the restore"
+  log "restored $file"
+}
+
 reset_demo() {
   local sha
   sha=$(live_commit)
   [[ -n $sha ]] || die "nothing is deployed yet"
+  backup before-reset || die "couldn't back up the current data, so nothing was reset"
   log "resetting demo data (live: $sha)"
   git -C "$SRC" checkout --quiet --detach "$sha"
   compose "$sha" down --volumes # this project's container and database volume only
@@ -150,8 +220,18 @@ main() {
       flock -w 900 9 || die "another deploy is still running"
       reset_demo
       ;;
+    backup)
+      [[ $# -le 2 ]] || die "usage: backup [label]"
+      flock -w 900 9 || die "another deploy is still running"
+      backup "${2:-manual}"
+      ;;
+    restore)
+      [[ $# -eq 2 ]] || die "usage: restore <backup file>"
+      flock -w 900 9 || die "another deploy is still running"
+      restore "$2"
+      ;;
     status) echo "live: $(live_commit)  last attempt: $(last_attempt)" ;;
-    *) die "usage: tq-deploy poll | deploy <sha> | reset-demo | status" ;;
+    *) die "usage: tq-deploy poll | deploy <sha> | reset-demo | backup [label] | restore <file> | status" ;;
   esac
 }
 

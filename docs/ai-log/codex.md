@@ -37,3 +37,10 @@ Did: reviewed all 17 Application handlers and current frontend logic; added 26-r
 Checked: 71 backend tests passed, 47 frontend tests passed at the last full frontend run, frontend typecheck/lint/build passed. Docker and real-browser journeys were not run.
 Unsure about / assumptions: teacher F3 files were still changing during inspection, so their final implementation needs a fresh pass. No API contract change was made.
 Human changed or rejected: no additional direction during this audit.
+
+### M4 adversarial review — 2026-09-24
+Asked to: coordinate with Claude while he tests/translates the whole Arabic UI, and independently review the repository for remaining edge cases.
+Did: wrote `docs/reviews/M4-codex-adversarial.md` after checking backend rules, authorization, persistence, runtime configuration, teacher/student flows and relevant tests. Reported four concrete findings for human triage; made no implementation edits during the review. Claude's Arabic UI changes were in progress and excluded from sign-off.
+Checked: `dotnet test TutoringQuiz.sln -c Release --no-restore --no-build` passed 78 tests (20 Domain, 58 HTTP/SQLite). Docker and browser journeys were not rerun in this review.
+Unsure about / assumptions: the cross-origin form risk assumes an untrusted sibling origin on the same site and a known quiz/attempt ID; Atta should assess deployment trust before triage.
+Human changed or rejected: Atta approved the full Arabic UI and browser E2E tests in CI via Claude's coordination message; implementation follows the review and is not claimed here.

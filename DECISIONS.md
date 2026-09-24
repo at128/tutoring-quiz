@@ -13,7 +13,7 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
 
 **One deployable.** ASP.NET Core serves the built React app and the API from the same origin: one container, no CORS, cookie auth works naturally.
 
-**Cookie authentication instead of JWT.** Same origin, so an HttpOnly cookie is simpler and safer than tokens in JavaScript storage, and it survives phone refreshes without a refresh-token scheme. CSRF is mitigated by `SameSite=Strict`, same origin and JSON-only mutation endpoints. `Secure` follows the request scheme, so testing over `http://<LAN-IP>` on a real phone works. Behind HTTPS (the live demo) the cookie is `Secure`, because the proxy's forwarded scheme is trusted there.
+**Cookie authentication instead of JWT.** Same origin, so an HttpOnly cookie is simpler and safer than tokens in JavaScript storage, and it survives phone refreshes without a refresh-token scheme. CSRF: `SameSite=Strict`, and every API change must come from the site's own pages (the browser's `Sec-Fetch-Site`, or `Origin` on older browsers); anything else gets 403. SameSite alone would still trust sibling subdomains (M4-01). `Secure` follows the request scheme, so testing over `http://<LAN-IP>` on a real phone works. Behind HTTPS (the live demo) the cookie is `Secure`, because the proxy's forwarded scheme is trusted there.
 
 **Toolchain: .NET 9, oxlint.** The plan preferred .NET 10 (LTS), but the development machine only has the .NET 9 SDK, so the solution targets `net9.0` (pinned in `global.json` with `rollForward: latestFeature`; Docker uses the matching `9.0` images). Moving to .NET 10 means changing `TargetFramework` in `Directory.Build.props`, the SDK in `global.json` and the Docker tags. The frontend linter is **oxlint**, because that's what the current Vite template ships (the plan said ESLint, which older templates used); `npm run lint` is still the gate.
 
@@ -60,7 +60,7 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
 - **Text that shows nothing counts as empty.** A title, question or option made only of spaces, tatweel (ـ), diacritics or invisible marks (ZWNJ, RLM…) is rejected with the same rule on the server and in the browser.
 
 ## 4. Deliberately left out
-Self-registration and password reset · an admin UI · uploading spreadsheets through the UI · question banks and reuse · shuffling and anti-cheating measures · live dashboards · notifications · multiple centres · audit log · background jobs, queues, caches · browser E2E tests in CI · production hosting (the live demo is one self-updating container on a shared server, for reviewers). Each is reasonable later; none is needed for Nour's first weekly quiz.
+Self-registration and password reset · an admin UI · uploading spreadsheets through the UI · question banks and reuse · shuffling and anti-cheating measures · live dashboards · notifications · multiple centres · audit log · background jobs, queues, caches · production hosting (the live demo is one self-updating container on a shared server, for reviewers). Each is reasonable later; none is needed for Nour's first weekly quiz.
 
 ## 5. With another week
 1. Admin role for Nour: manage classes, students, teachers; reset passwords.
@@ -70,12 +70,12 @@ Self-registration and password reset · an admin UI · uploading spreadsheets th
 5. Optional option/question shuffling per quiz.
 6. Server messages in Arabic. The interface already translates every error by its code, but server field messages are English.
 7. Production hosting: PostgreSQL, automated backups and monitoring (HTTPS hosting already exists as the live demo).
-8. Playwright E2E for the student journey on a mobile viewport.
+8. More browser journeys in CI: time-up on a real clock, offline autosave, a locked quiz.
 
 ## 6. Known limitations and unfinished work *(completed after the M4 review)*
 - **One SQLite file, one app instance.** Fine for one centre. Backups aren't automated (copy the volume). Several instances would need PostgreSQL (see §1).
 - **Login limits count every attempt:** 10/min per IP + username and 100/min per IP. A very large centre behind one public IP could reach the per-IP cap; it's configurable (`RateLimiting:*`).
-- **The live demo is shared.** Anyone with the published demo passwords can use it. An admin resets it on the server (`tq-deploy reset-demo`). Its quiz dates are relative to the last reset, so after about 14 days every demo quiz has closed until the next reset.
-- **Browser journeys aren't automated.** The frontend has unit tests of its logic (answers/autosave, timer, server clock, editor validation, results sorting). The full journeys were driven with Playwright scripts during development, at 360 px and on desktop, outside the repo and not in CI (§4).
-- **Native date/time pickers follow the device.** On an Arabic phone, the browser’s own date picker may show Arabic-Indic digits; everything the app writes uses 0-9.
-- *(M4 findings that are accepted but not fixed are listed here after triage.)*
+- **The live demo is shared.** Anyone with the published demo passwords can use it. An admin resets it on the server (`tq-deploy reset-demo`). Its data lives on a Docker volume that survives redeploys, restarts and reboots, and it is backed up daily and before every deploy, on the same server (not off-site). Its quiz dates are relative to the last reset, so after about 14 days every demo quiz has closed until the next reset.
+- **Browser tests cover the main journeys, not every screen state.** CI runs Playwright against the real container: the Arabic phone and English desktop student journeys, an Arabic teacher-to-student journey, and blank Arabic text in the editor (`frontend/e2e`). Time-up, offline autosave and the locked quiz are covered by unit and integration tests and were checked by hand in a browser, not by CI.
+- **Native date/time fields follow the device.** On a phone or a Windows PC set to an Arabic region, the browser’s own date field may show Arabic-Indic digits (٢٤/٠٩/٢٠٢٦). Everything the app writes uses 0-9. The number fields (time limit, points, custom marking) are plain text fields with a numeric keypad, so they always show 0-9, and digits typed on an Arabic keyboard (٤٥) become 45.
+- **M4 review outcome:** all four findings were accepted and fixed with tests. M4-01: cross-site requests are refused (above). M4-02: the editor validates against the time of the last save. M4-03: a failed class list shows an error with Try again. M4-04: the teacher list counts an attempt past its deadline as finalized. None are left open (`docs/reviews/M4-codex-adversarial.md`).

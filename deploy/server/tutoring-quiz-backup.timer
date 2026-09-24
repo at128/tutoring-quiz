@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up the tutoring-quiz database every day
+
+[Timer]
+OnCalendar=*-*-* 00:30:00 UTC
+# A missed run (server off at 00:30) runs at the next boot.
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

@@ -139,7 +139,14 @@ export function fromView(view: QuizEditorView): EditorValues {
   }
 }
 
-const toInt = (value: string): number | null => (/^-?\d+$/.test(value.trim()) ? Number(value.trim()) : null)
+/** Arabic-Indic (٠١٢…) and Persian (۰۱۲…) digits, as Arabic keyboards type them, read as 0-9. */
+export const westernDigits = (value: string) =>
+  value.replace(/[٠-٩۰-۹]/g, (digit) => String(digit.charCodeAt(0) & 0xf))
+
+const toInt = (value: string): number | null => {
+  const text = westernDigits(value).trim()
+  return /^-?\d+$/.test(text) ? Number(text) : null
+}
 
 export const penaltyPercent = (values: Pick<EditorValues, 'penalty' | 'customPenalty'>): number | null =>
   values.penalty === 'custom' ? toInt(values.customPenalty) : Number(values.penalty)
