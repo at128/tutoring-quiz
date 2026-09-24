@@ -26,7 +26,7 @@ export function QuizCard({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; now
         </span>
       </div>
 
-      <h3 dir="auto" className="auto-text text-card leading-[1.45] font-bold">
+      <h3 dir="auto" className="auto-text w-fit max-w-full text-card leading-[1.45] font-bold">
         {quiz.title}
       </h3>
 
