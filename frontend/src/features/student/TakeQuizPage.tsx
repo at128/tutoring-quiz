@@ -6,6 +6,7 @@ import { getAttempt, studentKeys, submitAttempt } from '../../api/student'
 import type { AttemptView } from '../../api/types'
 import { ButtonLink } from '../../components/Button'
 import { EmptyState, ErrorState, Skeleton } from '../../components/States'
+import { useLanguage } from '../../i18n/LanguageContext'
 import { serverOffset } from '../../lib/time'
 import { answersReducer, fromServer, hasFailures, isAnswered } from './takeQuiz/answers'
 import { QuestionCard } from './takeQuiz/QuestionCard'
@@ -27,6 +28,7 @@ async function fetchAttemptTimed(attemptId: string, signal?: AbortSignal): Promi
 const resultPath = (attemptId: string) => `/student/attempts/${attemptId}/result`
 
 export function TakeQuizPage() {
+  const { t } = useLanguage()
   const { attemptId = '' } = useParams()
   const attempt = useQuery({
     queryKey: studentKeys.attempt(attemptId),
@@ -42,16 +44,16 @@ export function TakeQuizPage() {
     return (
       <div className="mx-auto min-h-dvh max-w-[640px] px-4 py-10">
         {isApiError(attempt.error, 'not_found') ? (
-          <EmptyState title="This quiz attempt isn't available">
-            It may belong to another account. Your quizzes are on the home page.
+          <EmptyState title={t.take.notAvailableTitle}>
+            {t.take.notAvailableBody}
             <div className="mt-4">
               <ButtonLink to="/student" variant="secondary">
-                Go to my quizzes
+                {t.take.goToQuizzes}
               </ButtonLink>
             </div>
           </EmptyState>
         ) : (
-          <ErrorState error={attempt.error} onRetry={() => void attempt.refetch()} title="Your quiz didn't load" />
+          <ErrorState error={attempt.error} onRetry={() => void attempt.refetch()} title={t.take.loadError} />
         )}
       </div>
     )
@@ -245,8 +247,9 @@ function QuizRunner({ initial }: { initial: TimedAttempt }) {
 }
 
 function TakeQuizSkeleton() {
+  const { t } = useLanguage()
   return (
-    <div className="flex h-dvh flex-col bg-desk" aria-busy="true" aria-label="Loading your quiz">
+    <div className="flex h-dvh flex-col bg-desk" aria-busy="true" aria-label={t.take.loading}>
       <div className="flex-none border-b border-rule bg-paper">
         <div className="mx-auto flex max-w-[640px] flex-col gap-2 px-4 pt-2.5 pb-3">
           <Skeleton className="h-4 w-2/3" />

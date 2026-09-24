@@ -12,10 +12,13 @@ import { PageShell } from '../../components/PageShell'
 import { DoubleRule } from '../../components/Sheet'
 import { ErrorState, NotAvailableState, Skeleton } from '../../components/States'
 import { formatPercent, formatScore } from '../../lib/format'
+import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTime } from '../../lib/time'
+import { scoringExplanation } from './resultCopy'
 
 /** The finished attempt's score (prototype: "Result" and "Result, time ran out"). */
 export function ResultPage() {
+  const { t } = useLanguage()
   const { attemptId = '' } = useParams()
   const result = useQuery({
     queryKey: studentKeys.result(attemptId),
@@ -25,7 +28,7 @@ export function ResultPage() {
   return (
     <PageShell mainClassName="gap-4 pt-4 pb-8">
       {result.isPending ? (
-        <div className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-[18px]" aria-busy="true" aria-label="Loading your result">
+        <div className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-[18px]" aria-busy="true" aria-label={t.result.loading}>
           <Skeleton className="h-6 w-[100px] rounded-full" />
           <Skeleton className="h-6 w-3/4" />
           <Skeleton className="mx-auto h-14 w-40" />
@@ -33,15 +36,15 @@ export function ResultPage() {
         </div>
       ) : result.isError ? (
         isApiError(result.error, 'not_found') ? (
-          <NotAvailableState title="This result isn’t available" backTo="/student" backLabel="Back to your quizzes">
-            It may belong to another account. Check your list of quizzes.
+          <NotAvailableState title={t.result.notAvailableTitle} backTo="/student" backLabel={t.result.back}>
+            {t.result.notAvailableBody}
           </NotAvailableState>
         ) : isApiError(result.error, 'attempt.not_finalized') ? (
-          <NotAvailableState title="This quiz is still running" backTo={`/student/attempts/${attemptId}`} backLabel="Back to the quiz">
-            Your result appears here once you submit or the time runs out.
+          <NotAvailableState title={t.result.runningTitle} backTo={`/student/attempts/${attemptId}`} backLabel={t.result.backToQuiz}>
+            {t.result.runningBody}
           </NotAvailableState>
         ) : (
-          <ErrorState error={result.error} onRetry={() => void result.refetch()} title="Couldn’t load your result" />
+          <ErrorState error={result.error} onRetry={() => void result.refetch()} title={t.result.loadError} />
         )
       ) : (
         <ResultSheet result={result.data} />
@@ -51,18 +54,19 @@ export function ResultPage() {
 }
 
 function ResultSheet({ result }: { result: AttemptResult }) {
+  const { t, lang } = useLanguage()
   const expired = result.status === 'Expired'
   const negative = result.score < 0
 
   return (
     <>
       {expired ? (
-        <TopNotice icon="hourglass" tone="amber" title="Time ran out">
-          Your saved answers were submitted automatically. Answers chosen after the deadline don’t count.
+        <TopNotice icon="hourglass" tone="amber" title={t.result.timeRanOut}>
+          {t.result.timeRanOutBody}
         </TopNotice>
       ) : (
-        <TopNotice icon="check" tone="green" title="Quiz submitted">
-          Your answers are final.
+        <TopNotice icon="check" tone="green" title={t.result.submitted}>
+          {t.result.submittedBody}
         </TopNotice>
       )}
 
@@ -70,7 +74,7 @@ function ResultSheet({ result }: { result: AttemptResult }) {
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <Badge kind={result.status} />
-            <span className="text-meta text-muted">{formatDateTime(result.finalizedAt)}</span>
+            <span className="text-meta text-muted">{formatDateTime(result.finalizedAt, lang)}</span>
           </div>
           <h1 dir="auto" className="auto-text text-[20px] leading-[1.45] font-bold">
             {result.quizTitle}
@@ -80,7 +84,7 @@ function ResultSheet({ result }: { result: AttemptResult }) {
         <DoubleRule />
 
         <div className="flex flex-col items-center gap-1 py-2">
-          <span className="text-small text-muted">Your score</span>
+          <span className="text-small text-muted">{t.result.yourScore}</span>
           <div dir="ltr" className="flex items-baseline gap-2 tabular-nums">
             <span className={`text-[52px] leading-[1.1] font-bold ${negative ? 'text-red' : 'text-ink'}`}>{formatScore(result.score)}</span>
             <span className="text-[24px] font-medium text-muted">/ {result.maxScore}</span>
@@ -91,24 +95,23 @@ function ResultSheet({ result }: { result: AttemptResult }) {
         </div>
 
         <div className="flex rounded-option border border-rule">
-          <Count icon="check" tone="text-green" value={result.correctCount} label="Correct" />
-          <Count icon="x" tone="text-red" value={result.wrongCount} label="Wrong" />
-          <Count icon="minusCircle" tone="text-muted" value={result.unansweredCount} label="Unanswered" />
+          <Count icon="check" tone="text-green" value={result.correctCount} label={t.result.correct} />
+          <Count icon="x" tone="text-red" value={result.wrongCount} label={t.result.wrong} />
+          <Count icon="minusCircle" tone="text-muted" value={result.unansweredCount} label={t.result.unanswered} />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <h2 className="text-body font-bold">How this was scored</h2>
-          <p className="text-small leading-[1.55] text-ink-2">{scoringExplanation(result)}</p>
+          <h2 className="text-body font-bold">{t.result.howScored}</h2>
+          <p className="text-small leading-[1.55] text-ink-2">{scoringExplanation(result, t)}</p>
           <dl className="flex flex-col">
-            <Row label="Correct">
-              <Num>{result.correctCount}</Num> × full points
+            <Row label={t.result.correct}>
+              <Num>{result.correctCount}</Num> {t.result.fullPoints}
             </Row>
-            <Row label="Wrong">
-              <Num>{result.wrongCount}</Num> ×{' '}
-              {result.wrongAnswerPenaltyPercent > 0 ? `−${result.wrongAnswerPenaltyPercent}% of the question’s points` : '0 points'}
+            <Row label={t.result.wrong}>
+              <Num>{result.wrongCount}</Num> {t.result.wrongPenalty(result.wrongAnswerPenaltyPercent)}
             </Row>
-            <Row label="Unanswered">
-              <Num>{result.unansweredCount}</Num> × 0 points
+            <Row label={t.result.unanswered}>
+              <Num>{result.unansweredCount}</Num> {t.result.zeroPoints}
             </Row>
           </dl>
         </div>
@@ -119,26 +122,15 @@ function ResultSheet({ result }: { result: AttemptResult }) {
           <span className="pt-px">
             <Icon name="lock" className="size-4" />
           </span>
-          <span>Correct answers aren’t shown while the quiz is open, so they can’t reach classmates who haven’t taken it yet.</span>
+          <span>{t.result.reviewHidden}</span>
         </div>
       )}
 
       <ButtonLink to="/student" size="lg" className="w-full" replace>
-        Back to your quizzes
+        {t.result.back}
       </ButtonLink>
     </>
   )
-}
-
-/** Plain words for how negative marking affected this score (the server already applied it). */
-function scoringExplanation(result: AttemptResult): string {
-  const k = result.wrongAnswerPenaltyPercent
-  if (k === 0) return 'This quiz has no negative marking: wrong and unanswered questions scored zero.'
-  const rule = `This quiz uses negative marking: each wrong answer lost ${k}% of its points.`
-  if (result.score < 0) return `${rule} Your total is below zero because the deductions were larger than the points you earned.`
-  if (result.wrongCount === 0) return `${rule} You had no wrong answers, so nothing was deducted.`
-  const wrong = result.wrongCount === 1 ? 'Your 1 wrong answer' : `Your ${result.wrongCount} wrong answers`
-  return `${rule} ${wrong} lowered your score; unanswered questions didn’t.`
 }
 
 function TopNotice({ icon, tone, title, children }: { icon: IconName; tone: 'green' | 'amber'; title: string; children: ReactNode }) {

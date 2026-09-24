@@ -22,10 +22,5 @@ export function crossedNotice(previousMs: number, currentMs: number): TimeNotice
   return null
 }
 
-export const noticeText: Record<TimeNotice, string> = {
-  '5min': '5 minutes left',
-  '1min': '1 minute left — answers still save as you tap',
-}
-
 /** Retry delays for a failed answer save: 1 s, 2 s, 4 s, then every 8 s. */
 export const retryDelayMs = (failures: number) => Math.min(8000, 1000 * 2 ** Math.max(0, failures - 1))

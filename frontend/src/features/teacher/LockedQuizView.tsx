@@ -9,14 +9,15 @@ import { ClassChip } from '../../components/ClassChip'
 import { Icon } from '../../components/Icon'
 import { BackLink, PageShell } from '../../components/PageShell'
 import { optionLabel } from '../../lib/dir'
-import { plural } from '../../lib/format'
+import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTimeWithYear } from '../../lib/time'
-import { markingLong } from './teacherCopy'
 
 const OPEN_BY_DEFAULT = 3
 
 /** A quiz with attempts: content frozen, shown read-only (prototype: "Locked quiz"). */
 export function LockedQuizView({ view }: { view: QuizEditorView }) {
+  const { t, lang } = useLanguage()
+  const m = t.locked
   const summaries = useQuery({ queryKey: teacherKeys.quizzes(), queryFn: ({ signal }) => listTeacherQuizzes(signal) })
   const started = summaries.data?.find((q) => q.id === view.id)?.startedCount
   const resultsPath = `/teacher/quizzes/${view.id}/results`
@@ -25,7 +26,7 @@ export function LockedQuizView({ view }: { view: QuizEditorView }) {
   return (
     <PageShell width="teacher" mainClassName="gap-6 pt-5 pb-10 md:pt-8 md:pb-12">
       <div className="flex flex-col gap-2.5">
-        <BackLink to="/teacher" label="My quizzes" />
+        <BackLink to="/teacher" label={t.shell.myQuizzes} />
         <div className="flex gap-2">
           <Badge kind={view.state} />
           <Badge kind="Locked" />
@@ -41,46 +42,32 @@ export function LockedQuizView({ view }: { view: QuizEditorView }) {
             <Icon name="lock" />
           </span>
           <div className="flex flex-1 flex-col gap-1">
-            <div className="text-[17px] font-bold">This quiz is locked</div>
-            <p className="text-[15px] leading-[1.55] text-ink-2">
-              {started ? (
-                <>
-                  <Num>{started}</Num> {started === 1 ? 'student has' : 'students have'} already started it
-                </>
-              ) : (
-                'Students have already started it'
-              )}
-              , so questions, answers, points, negative marking, time limit and classes can’t change. This keeps scores fair for
-              everyone who takes it.
-            </p>
+            <div className="text-[17px] font-bold">{m.title}</div>
+            <p className="text-[15px] leading-[1.55] text-ink-2">{m.body(started)}</p>
           </div>
         </div>
         <ButtonLink to={resultsPath} className="w-full md:w-auto">
-          View results
+          {m.viewResults}
         </ButtonLink>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
         <div className="flex min-w-0 flex-col gap-6">
           <section className="flex flex-col gap-3.5 rounded-sheet border border-rule bg-paper p-5">
-            <h2 className="text-card font-bold">Details</h2>
+            <h2 className="text-card font-bold">{m.details}</h2>
             <dl className="flex flex-col">
-              <Row label="Classes">
+              <Row label={m.classes}>
                 <span className="flex flex-wrap gap-1.5">
                   {view.classRooms.map((c) => (
                     <ClassChip key={c.id} name={c.name} />
                   ))}
                 </span>
               </Row>
-              <Row label="Opens">{formatDateTimeWithYear(view.opensAt)}</Row>
-              <Row label="Closes">{formatDateTimeWithYear(view.closesAt)}</Row>
-              <Row label="Time limit">
-                <Num>{view.durationMinutes}</Num> minutes
-              </Row>
-              <Row label="Negative marking">{markingLong(view.wrongAnswerPenaltyPercent)}</Row>
-              <Row label="Maximum score">
-                <Num>{plural(view.maxScore, 'point')}</Num>
-              </Row>
+              <Row label={t.teacher.opens}>{formatDateTimeWithYear(view.opensAt, lang)}</Row>
+              <Row label={t.teacher.closes}>{formatDateTimeWithYear(view.closesAt, lang)}</Row>
+              <Row label={m.timeLimit}>{m.minutes(view.durationMinutes)}</Row>
+              <Row label={m.negativeMarking}>{t.teacher.markingLong(view.wrongAnswerPenaltyPercent)}</Row>
+              <Row label={m.maxScore}>{m.points(view.maxScore)}</Row>
             </dl>
             {view.description && (
               <p dir="auto" className="auto-text border-t border-rule-soft pt-3 text-[15px] leading-[1.6] whitespace-pre-wrap text-ink-2">
@@ -92,12 +79,12 @@ export function LockedQuizView({ view }: { view: QuizEditorView }) {
           <section className="flex flex-col rounded-sheet border border-rule bg-paper px-5 pt-5 pb-2">
             <div className="flex items-baseline justify-between pb-3">
               <h2 className="text-card font-bold">
-                Questions{' '}
+                {m.questions}{' '}
                 <span className="font-medium text-muted">
                   <Num>{questions.length}</Num>
                 </span>
               </h2>
-              <span className="text-small text-muted">Read-only</span>
+              <span className="text-small text-muted">{m.readOnly}</span>
             </div>
             <ReadOnlyQuestions questions={questions} />
           </section>
@@ -105,13 +92,13 @@ export function LockedQuizView({ view }: { view: QuizEditorView }) {
 
         <aside className="lg:sticky lg:top-6">
           <section className="flex flex-col gap-3 rounded-sheet border border-rule bg-paper p-[18px]">
-            <h2 className="text-body font-bold">Actions</h2>
+            <h2 className="text-body font-bold">{m.actions}</h2>
             <ButtonLink to={resultsPath} size="lg" className="w-full">
-              View results
+              {m.viewResults}
             </ButtonLink>
-            <DisabledAction>Unpublish</DisabledAction>
-            <DisabledAction>Delete quiz</DisabledAction>
-            <p className="text-meta leading-normal text-muted">Students have attempts, so this quiz can’t be unpublished or deleted.</p>
+            <DisabledAction>{m.unpublish}</DisabledAction>
+            <DisabledAction>{m.deleteQuiz}</DisabledAction>
+            <p className="text-meta leading-normal text-muted">{m.actionsNote}</p>
           </section>
         </aside>
       </div>
@@ -120,6 +107,8 @@ export function LockedQuizView({ view }: { view: QuizEditorView }) {
 }
 
 function ReadOnlyQuestions({ questions }: { questions: QuizEditorView['questions'] }) {
+  const { t } = useLanguage()
+  const m = t.locked
   const [open, setOpen] = useState<Set<string>>(() => new Set(questions.slice(0, OPEN_BY_DEFAULT).map((q) => q.id)))
 
   return (
@@ -128,12 +117,8 @@ function ReadOnlyQuestions({ questions }: { questions: QuizEditorView['questions
         open.has(question.id) ? (
           <section key={question.id} className="flex flex-col gap-3 border-t border-rule-soft py-[18px]">
             <div className="flex justify-between text-small font-semibold text-ink-2">
-              <span>
-                Question <Num>{index + 1}</Num>
-              </span>
-              <span>
-                <Num>{plural(question.points, 'point')}</Num>
-              </span>
+              <span>{m.questionN(index + 1)}</span>
+              <span>{m.points(question.points)}</span>
             </div>
             <p dir="auto" className="auto-text text-card leading-[1.6] font-semibold whitespace-pre-wrap">
               {question.text}
@@ -158,9 +143,9 @@ function ReadOnlyQuestions({ questions }: { questions: QuizEditorView['questions
                     </span>
                     <span className="flex-1">{option.text}</span>
                     {option.isCorrect && (
-                      <span dir="ltr" className="inline-flex flex-none items-center gap-1 text-meta font-bold text-green">
+                      <span className="inline-flex flex-none items-center gap-1 text-meta font-bold text-green">
                         <Icon name="check" className="size-3.5" strokeWidth={2.2} />
-                        Correct
+                        {m.correct}
                       </span>
                     )}
                   </li>
@@ -182,7 +167,7 @@ function ReadOnlyQuestions({ questions }: { questions: QuizEditorView['questions
               {question.text}
             </span>
             <span className="flex-none text-meta text-muted">
-              <Num>{question.points}</Num> {question.points === 1 ? 'pt' : 'pts'}
+              {m.ptsShort(question.points)}
             </span>
             <Icon name="chevronRight" className="size-[18px] text-muted" />
           </button>

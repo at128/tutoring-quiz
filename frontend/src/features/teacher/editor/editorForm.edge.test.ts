@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { QuizEditorView } from '../../../api/types'
+import { en } from '../../../i18n/en'
 import { fromLocalInput, fromView, instantOf, toLocalInput, toUpsert, validate } from './editorForm'
 
 afterEach(() => vi.unstubAllEnvs())
@@ -42,7 +43,7 @@ describe('teacher local-time edge cases', () => {
 
     const values = fromView(savedQuiz(opens, closes))
     expect(toUpsert(values)).toMatchObject({ opensAt: opens, closesAt: closes })
-    expect(validate(values, 'publish', Date.parse('2026-10-01T10:00:30Z'))).toEqual({})
+    expect(validate(values, 'publish', Date.parse('2026-10-01T10:00:30Z'), en.editor)).toEqual({})
   })
 
   it('uses the typed time once the teacher changes the minute shown', () => {

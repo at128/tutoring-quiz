@@ -1,8 +1,9 @@
 import { Auto, Num } from '../../../components/Auto'
 import { Icon } from '../../../components/Icon'
+import { useLanguage } from '../../../i18n/LanguageContext'
 import { formatCountdown } from '../../../lib/time'
 import { isAnswered, type Answers } from './answers'
-import { noticeText, timerPhase, type TimeNotice } from './timer'
+import { timerPhase, type TimeNotice } from './timer'
 
 const timerStyles = {
   normal: 'bg-tint border border-rule text-ink',
@@ -12,11 +13,12 @@ const timerStyles = {
 } as const
 
 export function Timer({ remainingMs }: { remainingMs: number }) {
+  const { t } = useLanguage()
   const text = formatCountdown(remainingMs)
   return (
     <span
       role="timer"
-      aria-label={`Time left ${text}`}
+      aria-label={t.take.timeLeft(text)}
       className={`inline-flex h-9 items-center gap-1.5 rounded-control px-3 ${timerStyles[timerPhase(remainingMs)]}`}
     >
       <Icon name="clock" className="size-[18px]" />
@@ -39,6 +41,7 @@ type HeaderProps = {
 
 /** Title, countdown, answered count, the Questions button and one tick per question. */
 export function QuizHeader({ title, remainingMs, questionIds, currentIndex, answers, notice, onOpenNavigator }: HeaderProps) {
+  const { t } = useLanguage()
   const answered = questionIds.filter((id) => isAnswered(answers[id])).length
 
   return (
@@ -53,7 +56,7 @@ export function QuizHeader({ title, remainingMs, questionIds, currentIndex, answ
                 {answered} / {questionIds.length}
               </Num>
             </strong>{' '}
-            answered
+            {t.take.answered}
           </span>
           <button
             type="button"
@@ -61,12 +64,12 @@ export function QuizHeader({ title, remainingMs, questionIds, currentIndex, answ
             className="inline-flex min-h-11 items-center gap-1.5 rounded-control border border-strong bg-paper px-3 text-small font-semibold text-ink hover:bg-tint"
           >
             <Icon name="grid" className="size-[18px]" />
-            Questions
+            {t.take.questionsButton}
           </button>
         </div>
         <ProgressTicks questionIds={questionIds} currentIndex={currentIndex} answers={answers} />
         <div className="sr-only" aria-live="polite">
-          {notice ? noticeText[notice] : ''}
+          {notice ? (notice === '1min' ? t.take.notice1 : t.take.notice5) : ''}
         </div>
       </div>
     </header>

@@ -134,6 +134,9 @@ const paths = {
 
 export type IconName = keyof typeof paths
 
+// Icons that point along the reading direction: mirrored when the interface is right-to-left.
+const DIRECTIONAL: ReadonlySet<IconName> = new Set<IconName>(['chevronLeft', 'chevronRight', 'arrowRight', 'logout'])
+
 export function Icon({
   name,
   label,
@@ -153,7 +156,7 @@ export function Icon({
       strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`block shrink-0 ${className}`}
+      className={`block shrink-0 ${DIRECTIONAL.has(name) ? 'rtl:-scale-x-100' : ''} ${className}`}
       role={label ? 'img' : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}

@@ -1,4 +1,6 @@
 import type { QuizEditorView, QuizUpsert } from '../../../api/types'
+import type { Messages } from '../../../i18n/en'
+import type { Lang } from '../../../i18n/lang'
 import { formatDateTime } from '../../../lib/time'
 
 // Pure model of the quiz editor: form values ⇄ API request, and validation that mirrors the server's rules
@@ -73,11 +75,11 @@ export function instantOf(local: string, stored: string | null): string | null {
   return stored !== null && toLocalInput(stored) === local ? stored : fromLocalInput(local)
 }
 
-/** "Amman time" from the browser's time zone. */
-export function localTimeZoneLabel(): string {
+/** "Amman time" / "بتوقيت عمّان" from the browser's time zone. */
+export function localTimeZoneLabel(m: Messages['editor']): string {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? ''
   const city = zone.split('/').pop()?.replaceAll('_', ' ')
-  return city ? `${city} time` : 'Local time'
+  return m.timeZone(city || null)
 }
 
 // ---- mapping ----
@@ -162,60 +164,66 @@ export function toUpsert(values: EditorValues): QuizUpsert {
 
 // ---- validation ----
 
-export const NEEDS_CORRECT = 'Choose the correct answer for this question.'
-/** A filled-in date/time that the calendar or a daylight-saving jump rules out (never silently shifted). */
-export const NOT_A_REAL_TIME = 'That date and time doesn’t exist in your time zone. Choose another.'
+// Nothing a reader would see: separators, controls, invisible format marks (ZWNJ, RLM…), marks such as Arabic
+// diacritics on their own, and tatweel. The server uses the same rule, so "ـــ" is blank on both sides.
+const INVISIBLE_ONLY = /^[\p{Z}\p{Cc}\p{Cf}\p{M}ـ]*$/u
 
-export function validate(values: EditorValues, intent: Intent, nowMs: number): Problems {
+export const isBlank = (text: string) => INVISIBLE_ONLY.test(text)
+
+/**
+ * The client's copy of the server rules, worded in the interface language (`m`). A filled-in date/time that the
+ * calendar or a daylight-saving jump rules out gets `m.notRealTime` (never silently shifted).
+ */
+export function validate(values: EditorValues, intent: Intent, nowMs: number, m: Messages['editor']): Problems {
   const problems: Problems = {}
   const add = (key: string, message: string) => {
     problems[key] = [...(problems[key] ?? []), message]
   }
 
   const title = values.title.trim()
-  if (title.length < LIMITS.titleMin || title.length > LIMITS.titleMax)
-    add('title', `Title must be ${LIMITS.titleMin}–${LIMITS.titleMax} characters.`)
+  if (isBlank(title) || title.length < LIMITS.titleMin || title.length > LIMITS.titleMax)
+    add('title', m.titleLength(LIMITS.titleMin, LIMITS.titleMax))
   if (values.description.trim().length > LIMITS.descriptionMax)
-    add('description', `Description can be at most ${LIMITS.descriptionMax} characters.`)
-  if (values.classRoomIds.length === 0) add('classRoomIds', 'Choose at least one class.')
+    add('description', m.descriptionMax(LIMITS.descriptionMax))
+  if (values.classRoomIds.length === 0) add('classRoomIds', m.chooseClass)
 
   const opens = instantOf(values.opensAt, values.stored.opensAt)
   const closes = instantOf(values.closesAt, values.stored.closesAt)
-  if (!opens) add('opensAt', values.opensAt === '' ? 'Choose when the quiz opens.' : NOT_A_REAL_TIME)
-  if (!closes) add('closesAt', values.closesAt === '' ? 'Choose when the quiz closes.' : NOT_A_REAL_TIME)
-  else if (opens && Date.parse(closes) <= Date.parse(opens)) add('closesAt', 'Must be after the opening time.')
-  else if (intent === 'publish' && Date.parse(closes) <= nowMs) add('closesAt', 'The closing time must be in the future.')
+  if (!opens) add('opensAt', values.opensAt === '' ? m.opensMissing : m.notRealTime)
+  if (!closes) add('closesAt', values.closesAt === '' ? m.closesMissing : m.notRealTime)
+  else if (opens && Date.parse(closes) <= Date.parse(opens)) add('closesAt', m.closesAfterOpens)
+  else if (intent === 'publish' && Date.parse(closes) <= nowMs) add('closesAt', m.closesFuture)
 
   const duration = toInt(values.durationMinutes)
   if (duration === null || duration < LIMITS.durationMin || duration > LIMITS.durationMax)
-    add('durationMinutes', `Time limit must be ${LIMITS.durationMin}–${LIMITS.durationMax} minutes.`)
+    add('durationMinutes', m.durationRange(LIMITS.durationMin, LIMITS.durationMax))
 
   const penalty = penaltyPercent(values)
-  if (penalty === null || penalty < 0 || penalty > 100) add('wrongAnswerPenaltyPercent', 'Negative marking must be a whole number from 0 to 100.')
+  if (penalty === null || penalty < 0 || penalty > 100) add('wrongAnswerPenaltyPercent', m.penaltyRange)
 
-  if (values.questions.length > LIMITS.questionsMax) add('questions', `A quiz can have at most ${LIMITS.questionsMax} questions.`)
-  if (intent === 'publish' && values.questions.length === 0) add('questions', 'Add at least one question before publishing.')
+  if (values.questions.length > LIMITS.questionsMax) add('questions', m.questionsMax(LIMITS.questionsMax))
+  if (intent === 'publish' && values.questions.length === 0) add('questions', m.questionsMin)
 
   values.questions.forEach((q, i) => {
     const prefix = `questions[${i}]`
     const text = q.text.trim()
-    if (text.length === 0) add(`${prefix}.text`, 'Write the question.')
-    else if (text.length > LIMITS.questionTextMax) add(`${prefix}.text`, `Questions can be at most ${LIMITS.questionTextMax} characters.`)
+    if (isBlank(text)) add(`${prefix}.text`, m.writeQuestion)
+    else if (text.length > LIMITS.questionTextMax) add(`${prefix}.text`, m.questionMax(LIMITS.questionTextMax))
 
     const points = toInt(q.points)
     if (points === null || points < LIMITS.pointsMin || points > LIMITS.pointsMax)
-      add(`${prefix}.points`, `Points must be a whole number from ${LIMITS.pointsMin} to ${LIMITS.pointsMax}.`)
+      add(`${prefix}.points`, m.pointsRange(LIMITS.pointsMin, LIMITS.pointsMax))
 
     if (q.options.length < LIMITS.optionsMin || q.options.length > LIMITS.optionsMax)
-      add(`${prefix}.options`, `A question needs ${LIMITS.optionsMin}–${LIMITS.optionsMax} options.`)
+      add(`${prefix}.options`, m.optionsRange(LIMITS.optionsMin, LIMITS.optionsMax))
     const correct = toInt(q.correct)
-    if (correct === null || correct < 0 || correct >= q.options.length) add(`${prefix}.options`, NEEDS_CORRECT)
+    if (correct === null || correct < 0 || correct >= q.options.length) add(`${prefix}.options`, m.needsCorrect)
 
     q.options.forEach((o, j) => {
       const optionText = o.text.trim()
-      if (optionText.length === 0) add(`${prefix}.options[${j}].text`, 'Write this option.')
+      if (isBlank(optionText)) add(`${prefix}.options[${j}].text`, m.writeOption)
       else if (optionText.length > LIMITS.optionTextMax)
-        add(`${prefix}.options[${j}].text`, `Options can be at most ${LIMITS.optionTextMax} characters.`)
+        add(`${prefix}.options[${j}].text`, m.optionMax(LIMITS.optionTextMax))
     })
   })
 
@@ -237,35 +245,39 @@ export const problemsOfQuestion = (problems: Problems, index: number) =>
   Object.entries(problems).filter(([key]) => questionIndexOf(key) === index)
 
 /** One readable line per problem for the summary banner ("Question 2 needs a correct answer."). */
-export function problemLines(problems: Problems): string[] {
+export function problemLines(problems: Problems, m: Messages['editor']): string[] {
   const lines = new Set<string>()
   for (const [key, messages] of Object.entries(problems)) {
     const index = questionIndexOf(key)
     for (const message of messages) {
       if (index === null) lines.add(message)
-      else if (message === NEEDS_CORRECT) lines.add(`Question ${index + 1} needs a correct answer.`)
-      else lines.add(`Question ${index + 1}: ${message}`)
+      else if (message === m.needsCorrect) lines.add(m.needsCorrectLine(index + 1))
+      else lines.add(m.questionProblem(index + 1, message))
     }
   }
   return [...lines]
 }
 
-/** "10A and 10B", "10A, 10B and 11A". */
-export function joinNames(names: string[]): string {
-  if (names.length <= 1) return names.join('')
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+/**
+ * Server field messages are English. In another language, each field shows the client's own message for it (the
+ * rules are the same), or a plain "check this field" when only the server caught it.
+ */
+export function localizeServerProblems(server: Problems, client: Problems, t: Messages): Problems {
+  if (t.errors.useServerDetail) return server
+  return Object.fromEntries(Object.keys(server).map((key) => [key, client[key] ?? [t.editor.checkField]]))
 }
 
 /** Where the quiz stands, in one sentence (uses the saved quiz, not unsaved edits). */
-export function statusSentence(view: QuizEditorView | null): string {
-  if (!view || view.state === 'Draft') return 'Draft. Only you can see it until you publish it.'
-  const classes = joinNames(view.classRooms.map((c) => c.name))
+export function statusSentence(view: QuizEditorView | null, t: Messages, lang: Lang): string {
+  const m = t.editor
+  if (!view || view.state === 'Draft') return m.statusDraft
+  const classes = t.joinList(view.classRooms.map((c) => c.name))
   switch (view.state) {
     case 'Scheduled':
-      return `Published. Students in ${classes} can start it from ${formatDateTime(view.opensAt)}.`
+      return m.statusScheduled(classes, formatDateTime(view.opensAt, lang))
     case 'Open':
-      return `Published and open. Students in ${classes} can start it until ${formatDateTime(view.closesAt)}.`
+      return m.statusOpen(classes, formatDateTime(view.closesAt, lang))
     case 'Closed':
-      return `Closed ${formatDateTime(view.closesAt)}. No student started it.`
+      return m.statusClosed(formatDateTime(view.closesAt, lang))
   }
 }

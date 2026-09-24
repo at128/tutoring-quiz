@@ -21,13 +21,24 @@ import { Dialog } from '../../components/Dialog'
 import { Icon } from '../../components/Icon'
 import { BackLink, PageShell } from '../../components/PageShell'
 import { ErrorState, NotAvailableState, Skeleton } from '../../components/States'
-import { DetailsSection } from './editor/DetailsSection'
+import { useLanguage } from '../../i18n/LanguageContext'
+import { DetailsSection, type ClassRoomsState } from './editor/DetailsSection'
 import { DeleteButton, EditorAside, EditorFooter, ProblemsBanner, type EditorAction } from './editor/EditorAside'
-import { emptyForm, fromView, penaltyPercent, problemLines, toUpsert, validate, type EditorValues, type Intent, type Problems } from './editor/editorForm'
+import {
+  emptyForm,
+  fromView,
+  localizeServerProblems,
+  penaltyPercent,
+  problemLines,
+  toUpsert,
+  validate,
+  type EditorValues,
+  type Intent,
+  type Problems,
+} from './editor/editorForm'
 import { QuestionsSection } from './editor/QuestionsSection'
 import { LockedQuizView } from './LockedQuizView'
 
-const BACK = { to: '/teacher', label: 'My quizzes' }
 const editPath = (id: string) => `/teacher/quizzes/${id}/edit`
 
 type Notice =
@@ -38,6 +49,8 @@ type LocationState = { notice?: Notice; problems?: Problems } | null
 
 /** /teacher/quizzes/new and /teacher/quizzes/:quizId/edit (prototype: "Edit quiz", "Locked quiz"). */
 export function QuizEditorPage() {
+  const { t } = useLanguage()
+  const BACK = { to: '/teacher', label: t.shell.myQuizzes }
   const { quizId } = useParams()
   const quiz = useQuery({
     queryKey: teacherKeys.quiz(quizId ?? 'new'),
@@ -50,7 +63,7 @@ export function QuizEditorPage() {
     return (
       <PageShell width="teacher" mainClassName="gap-5 pt-5 pb-10 md:pt-8">
         <BackLink {...BACK} />
-        <div className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-5" aria-busy="true" aria-label="Loading the quiz">
+        <div className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-5" aria-busy="true" aria-label={t.editor.loading}>
           <Skeleton className="h-6 w-40" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-24 w-full" />
@@ -63,21 +76,27 @@ export function QuizEditorPage() {
       <PageShell width="teacher" mainClassName="gap-5 pt-5 pb-10 md:pt-8">
         <BackLink {...BACK} />
         {isApiError(quiz.error, 'not_found') ? (
-          <NotAvailableState title="Quiz not found" backTo="/teacher" backLabel="Back to my quizzes">
-            It may have been deleted, or it isn’t one of your quizzes.
+          <NotAvailableState title={t.editor.notFoundTitle} backTo="/teacher" backLabel={t.editor.backToMyQuizzes}>
+            {t.editor.notFoundBody}
           </NotAvailableState>
         ) : (
-          <ErrorState error={quiz.error} onRetry={() => void quiz.refetch()} title="Couldn’t load this quiz" />
+          <ErrorState error={quiz.error} onRetry={() => void quiz.refetch()} title={t.editor.loadError} />
         )}
       </PageShell>
     )
 
   if (quiz.data?.isLocked) return <LockedQuizView view={quiz.data} />
 
-  return <QuizEditor key={quizId ?? 'new'} view={quiz.data ?? null} classRooms={classRooms.data} />
+  const classRoomsState: ClassRoomsState = {
+    data: classRooms.data,
+    failed: classRooms.isError,
+    retry: () => void classRooms.refetch(),
+  }
+  return <QuizEditor key={quizId ?? 'new'} view={quiz.data ?? null} classRooms={classRoomsState} />
 }
 
-function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRooms: Parameters<typeof DetailsSection>[0]['classRooms'] }) {
+function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRooms: ClassRoomsState }) {
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const location = useLocation()
@@ -89,14 +108,17 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
   // Subscribes to every field so problems and the status facts update as the teacher types.
   const values = useWatch({ control: form.control }) as EditorValues
   const [attempt, setAttempt] = useState<Intent | null>(arrival?.problems ? 'publish' : null)
+  // The instant of the last Save/Publish: the problems shown are checked against the same time the save used.
+  const [checkedAt, setCheckedAt] = useState(openedAt)
   const [serverProblems, setServerProblems] = useState<Problems>(arrival?.problems ?? {})
   const [notice, setNotice] = useState<Notice | null>(arrival?.notice ?? null)
   const [busy, setBusy] = useState<EditorAction | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Client rules re-run live after the first failed attempt; server messages stay until the next attempt.
-  const problems: Problems = { ...(attempt ? validate(values, attempt, openedAt) : {}), ...serverProblems }
-  const lines = problemLines(problems)
+  const clientProblems: Problems = attempt ? validate(values, attempt, checkedAt, t.editor) : {}
+  const problems: Problems = { ...clientProblems, ...localizeServerProblems(serverProblems, clientProblems, t) }
+  const lines = problemLines(problems, t.editor)
   const dirty = form.formState.isDirty
 
   // A notice carried over from creating the quiz is shown once, not again after a refresh.
@@ -133,11 +155,11 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
       setNotice(null)
     } else if (isApiError(error, 'quiz.locked')) setNotice({ kind: 'locked' })
     else if (isApiError(error, 'quiz.has_attempts')) setNotice({ kind: 'hasAttempts', message: error.detail ?? undefined })
-    else if (isApiError(error, 'not_found')) setNotice({ kind: 'failed', message: 'This quiz no longer exists. It may have been deleted.' })
+    else if (isApiError(error, 'not_found')) setNotice({ kind: 'failed', message: t.editor.gone })
     else
       setNotice({
         kind: 'failed',
-        message: isApiError(error, 'network_error') ? 'Check your connection and try again.' : 'Try again in a moment.',
+        message: isApiError(error, 'network_error') ? t.errors.checkConnection : t.errors.tryLater,
       })
   }
 
@@ -146,7 +168,9 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
     setServerProblems({})
     setNotice(null)
     const current = form.getValues()
-    if (Object.keys(validate(current, intent, Date.now())).length > 0) return
+    const now = Date.now()
+    setCheckedAt(now)
+    if (Object.keys(validate(current, intent, now, t.editor)).length > 0) return
 
     setBusy(intent)
     try {
@@ -224,7 +248,7 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
     questions: values.questions.length,
     points: values.questions.reduce((sum, q) => sum + (Number.parseInt(q.points, 10) || 0), 0),
     minutes: values.durationMinutes || '—',
-    marking: penalty === null ? '—' : penalty === 0 ? 'None' : `${penalty}%`,
+    marking: penalty === null ? '—' : penalty === 0 ? t.editor.markingNone : `${penalty}%`,
   }
 
   return (
@@ -235,13 +259,13 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
       footerClassName="lg:hidden"
     >
       <div className="flex flex-col gap-2">
-        <BackLink {...BACK} />
+        <BackLink to="/teacher" label={t.shell.myQuizzes} />
         <div className="flex items-center justify-between gap-3 lg:justify-start">
-          <h1 className="text-page leading-[1.3] font-bold md:text-display">{view ? 'Edit quiz' : 'New quiz'}</h1>
+          <h1 className="text-page leading-[1.3] font-bold md:text-display">{view ? t.editor.editTitle : t.editor.newTitle}</h1>
           {dirty ? (
             <span className="inline-flex items-center gap-1.5 text-small text-amber-ink">
               <Icon name="pencil" className="size-4" />
-              Unsaved changes
+              {t.editor.unsaved}
             </span>
           ) : (
             <span className="lg:hidden">
@@ -254,7 +278,7 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
       <NoticeBanner notice={notice} view={view} onReload={() => void reload()} />
       {lines.length > 0 && (
         <div className="lg:hidden">
-          <ProblemsBanner lines={lines} title={attempt === 'publish' ? 'Can’t publish yet' : undefined} />
+          <ProblemsBanner lines={lines} title={attempt === 'publish' ? t.editor.cantPublish : undefined} />
         </div>
       )}
 
@@ -274,15 +298,15 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
       <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} role="alertdialog" labelledBy="delete-title" dismissible={busy !== 'delete'}>
         <div className="flex flex-col gap-3.5">
           <h2 id="delete-title" className="text-[20px] font-bold">
-            Delete this quiz?
+            {t.editor.deleteTitle}
           </h2>
-          <p className="text-[15px] leading-[1.55] text-ink-2">The quiz and its questions will be removed. This can’t be undone.</p>
+          <p className="text-[15px] leading-[1.55] text-ink-2">{t.editor.deleteBody}</p>
           <div className="flex flex-col gap-2.5 pt-1">
             <Button variant="danger" size="lg" loading={busy === 'delete'} onClick={() => void remove()}>
-              Delete quiz
+              {t.editor.deleteQuiz}
             </Button>
             <Button variant="secondary" size="lg" disabled={busy === 'delete'} onClick={() => setConfirmDelete(false)}>
-              Keep it
+              {t.editor.keepIt}
             </Button>
           </div>
         </div>
@@ -292,14 +316,16 @@ function QuizEditor({ view, classRooms }: { view: QuizEditorView | null; classRo
 }
 
 function NoticeBanner({ notice, view, onReload }: { notice: Notice | null; view: QuizEditorView | null; onReload: () => void }) {
+  const { t } = useLanguage()
+  const m = t.editor
   if (!notice) return null
   switch (notice.kind) {
     case 'saved':
-      return <Banner kind="success">{view?.isPublished ? 'Changes saved.' : 'Draft saved. Students can’t see it until you publish it.'}</Banner>
+      return <Banner kind="success">{view?.isPublished ? m.changesSaved : m.draftSaved}</Banner>
     case 'published':
-      return <Banner kind="success">Quiz published. Students in the chosen classes see it from its opening time.</Banner>
+      return <Banner kind="success">{m.published}</Banner>
     case 'unpublished':
-      return <Banner kind="info">Quiz unpublished. It’s a draft again and hidden from students.</Banner>
+      return <Banner kind="info">{m.unpublished}</Banner>
     case 'locked':
     case 'hasAttempts':
       return (
@@ -310,22 +336,20 @@ function NoticeBanner({ notice, view, onReload }: { notice: Notice | null; view:
             </span>
             <div className="flex flex-1 flex-col gap-0.5">
               <div className="text-[15px] leading-[1.4] font-semibold text-red">
-                {notice.kind === 'locked' ? 'Your changes weren’t saved' : 'Students have already started this quiz'}
+                {notice.kind === 'locked' ? m.lockedTitle : m.hasAttemptsTitle}
               </div>
               <div className="text-small leading-normal text-ink-2">
-                {notice.kind === 'locked'
-                  ? 'A student started this quiz while you were editing, so it’s now locked. Reload to see the saved version.'
-                  : 'It can’t be unpublished or deleted any more. Reload to see its current state.'}
+                {notice.kind === 'locked' ? m.lockedBody : m.hasAttemptsBody}
               </div>
             </div>
           </div>
           <Button size="lg" className="w-full md:w-auto md:self-start" onClick={onReload}>
             <Icon name="refresh" className="size-[18px]" />
-            Reload quiz
+            {m.reload}
           </Button>
         </div>
       )
     case 'failed':
-      return <Banner kind="error" title="Couldn’t save">{notice.message ?? 'Try again in a moment.'}</Banner>
+      return <Banner kind="error" title={m.saveFailed}>{notice.message ?? t.errors.tryLater}</Banner>
   }
 }

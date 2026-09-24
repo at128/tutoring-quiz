@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { en } from '../../../i18n/en'
 import { ALL, classFilters, filterRows, percentOf, sortRows, statusCounts, type ResultRow } from './resultsView'
 
 const row = (fullName: string, classRoom: string, status: ResultRow['status'], score: number | null): ResultRow => ({
@@ -25,7 +26,7 @@ const rows = [
 
 describe('filters and sorting', () => {
   it('offers All plus each class with its count', () => {
-    expect(classFilters(rows)).toEqual([
+    expect(classFilters(rows, en.results)).toEqual([
       { value: ALL, label: 'All (5)' },
       { value: '10A', label: '10A (2)' },
       { value: '10B', label: '10B (3)' },
@@ -35,17 +36,17 @@ describe('filters and sorting', () => {
   })
 
   it('sorts by class then name by default', () => {
-    expect(sortRows(rows, 'class').map((r) => r.fullName)).toEqual(['Lara', 'Omar', 'Adam', 'Maya', 'Sara'])
+    expect(sortRows(rows, 'class', 'en').map((r) => r.fullName)).toEqual(['Lara', 'Omar', 'Adam', 'Maya', 'Sara'])
   })
 
   it('sorts by score both ways and keeps unscored students last', () => {
-    expect(sortRows(rows, 'scoreHigh').map((r) => r.fullName)).toEqual(['Adam', 'Omar', 'Sara', 'Lara', 'Maya'])
-    expect(sortRows(rows, 'scoreLow').map((r) => r.fullName)).toEqual(['Sara', 'Omar', 'Adam', 'Lara', 'Maya'])
+    expect(sortRows(rows, 'scoreHigh', 'en').map((r) => r.fullName)).toEqual(['Adam', 'Omar', 'Sara', 'Lara', 'Maya'])
+    expect(sortRows(rows, 'scoreLow', 'en').map((r) => r.fullName)).toEqual(['Sara', 'Omar', 'Adam', 'Lara', 'Maya'])
   })
 
   it('does not change the input order', () => {
     const before = rows.map((r) => r.fullName)
-    sortRows(rows, 'name')
+    sortRows(rows, 'name', 'en')
     expect(rows.map((r) => r.fullName)).toEqual(before)
   })
 })

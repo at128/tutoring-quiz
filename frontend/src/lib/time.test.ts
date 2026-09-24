@@ -31,9 +31,9 @@ describe('formatCountdown', () => {
 
 describe('formatMinutes', () => {
   it('reads naturally', () => {
-    expect(formatMinutes(1)).toBe('1 minute')
-    expect(formatMinutes(20)).toBe('20 minutes')
-    expect(formatMinutes(90)).toBe('1 h 30 min')
-    expect(formatMinutes(120)).toBe('2 h')
+    expect(formatMinutes(1, 'en')).toBe('1 minute')
+    expect(formatMinutes(20, 'en')).toBe('20 minutes')
+    expect(formatMinutes(90, 'en')).toBe('1 h 30 min')
+    expect(formatMinutes(120, 'en')).toBe('2 h')
   })
 })
