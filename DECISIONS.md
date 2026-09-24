@@ -49,7 +49,7 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
 - **"Only X minutes left" warning** before starting near the close.
 - **Teacher results list students who haven't started or missed the quiz** — that's usually the teacher's first question.
 - **Data loaded from CSV files** — ready for the real spreadsheets.
-- **Login rate limiting** — cheap protection against guessing demo-style passwords.
+- **Login rate limiting**: cheap protection against guessing demo-style passwords. It limits **per IP + username** (10/min), plus a loose per-IP cap (100/min). A class signing in together from the centre's Wi-Fi shares one IP; a plain per-IP limit (the first plan) would have locked half of them out at the start of a quiz.
 - *(fill at the end: any stretch items that got built, e.g. CSV export with a BOM so Excel shows Arabic names.)*
 
 ## 4. Deliberately left out
