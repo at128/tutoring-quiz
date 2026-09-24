@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up the tutoring-quiz live demo database
+Documentation=https://github.com/at128/tutoring-quiz/blob/main/deploy/README.md
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/tutoring-quiz/bin/tq-deploy backup daily
