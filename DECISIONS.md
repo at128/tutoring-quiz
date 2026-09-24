@@ -13,7 +13,7 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
 
 **One deployable.** ASP.NET Core serves the built React app and the API from the same origin: one container, no CORS, cookie auth works naturally.
 
-**Cookie authentication instead of JWT.** Same origin, so an HttpOnly cookie is simpler and safer than tokens in JavaScript storage, and it survives phone refreshes without a refresh-token scheme. CSRF is mitigated by `SameSite=Strict`, same origin and JSON-only mutation endpoints. `Secure` follows the request scheme so testing over `http://<LAN-IP>` on a real phone works; in production behind HTTPS it would always be secure.
+**Cookie authentication instead of JWT.** Same origin, so an HttpOnly cookie is simpler and safer than tokens in JavaScript storage, and it survives phone refreshes without a refresh-token scheme. CSRF is mitigated by `SameSite=Strict`, same origin and JSON-only mutation endpoints. `Secure` follows the request scheme, so testing over `http://<LAN-IP>` on a real phone works. Behind HTTPS (the live demo) the cookie is `Secure`, because the proxy's forwarded scheme is trusted there.
 
 **Toolchain: .NET 9, oxlint.** The plan preferred .NET 10 (LTS), but the development machine only has the .NET 9 SDK, so the solution targets `net9.0` (pinned in `global.json` with `rollForward: latestFeature`; Docker uses the matching `9.0` images). Moving to .NET 10 means changing `TargetFramework` in `Directory.Build.props`, the SDK in `global.json` and the Docker tags. The frontend linter is **oxlint**, because that's what the current Vite template ships (the plan said ESLint, which older templates used); `npm run lint` is still the gate.
 
@@ -50,10 +50,13 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
 - **Teacher results list students who haven't started or missed the quiz** — that's usually the teacher's first question.
 - **Data loaded from CSV files** — ready for the real spreadsheets.
 - **Login rate limiting**: cheap protection against guessing demo-style passwords. It limits **per IP + username** (10/min), plus a loose per-IP cap (100/min). A class signing in together from the centre's Wi-Fi shares one IP; a plain per-IP limit (the first plan) would have locked half of them out at the start of a quiz.
-- *(fill at the end: any stretch items that got built, e.g. CSV export with a BOM so Excel shows Arabic names.)*
+- **Screens that don't go stale.** The teacher's list refetches at the next opening or closing time, so a quiz's state badge and order update while the page stays open; the state itself still comes from the server.
+- **The editor never shifts a time silently.** Impossible dates (30 Feb) and times skipped by a daylight-saving jump are rejected. Saving a quiz keeps its stored times to the second until the teacher changes them.
+- **A live demo that updates itself**: https://quiz.just-atta.site. The server pulls each commit of `main` whose CI passed, builds it and swaps it in, rolling back if the health check fails. It publishes no new port, and nothing about the server (keys, addresses, secrets) is stored on GitHub. See `deploy/README.md`. This is reviewer convenience; `docker compose up --build` stays the way to run the project.
+- No stretch items (S1–S5 in `PLAN.md`) were built.
 
 ## 4. Deliberately left out
-Self-registration and password reset · an admin UI · uploading spreadsheets through the UI · question banks and reuse · shuffling and anti-cheating measures · live dashboards · notifications · multiple centres · audit log · background jobs, queues, caches · browser E2E tests · cloud deployment. Each is reasonable later; none is needed for Nour's first weekly quiz.
+Self-registration and password reset · an admin UI · uploading spreadsheets through the UI · question banks and reuse · shuffling and anti-cheating measures · live dashboards · notifications · multiple centres · audit log · background jobs, queues, caches · browser E2E tests in CI · production hosting (the live demo is one self-updating container on a shared server, for reviewers). Each is reasonable later; none is needed for Nour's first weekly quiz.
 
 ## 5. With another week
 1. Admin role for Nour: manage classes, students, teachers; reset passwords.
@@ -62,8 +65,13 @@ Self-registration and password reset · an admin UI · uploading spreadsheets th
 4. Per-question analytics (which questions most students got wrong).
 5. Optional option/question shuffling per quiz.
 6. Full Arabic interface toggle.
-7. PostgreSQL + automated backups, HTTPS deployment.
+7. Production hosting: PostgreSQL, automated backups and monitoring (HTTPS hosting already exists as the live demo).
 8. Playwright E2E for the student journey on a mobile viewport.
 
-## 6. Known limitations and unfinished work *(fill at the end)*
-- …
+## 6. Known limitations and unfinished work *(completed after the M4 review)*
+- **One SQLite file, one app instance.** Fine for one centre. Backups aren't automated (copy the volume). Several instances would need PostgreSQL (see §1).
+- **Login limits count every attempt:** 10/min per IP + username and 100/min per IP. A very large centre behind one public IP could reach the per-IP cap; it's configurable (`RateLimiting:*`).
+- **The live demo is shared.** Anyone with the published demo passwords can use it. An admin resets it on the server (`tq-deploy reset-demo`). Its quiz dates are relative to the last reset, so after about 14 days every demo quiz has closed until the next reset.
+- **Browser journeys aren't automated.** The frontend has unit tests of its logic (answers/autosave, timer, server clock, editor validation, results sorting). The full journeys were driven with Playwright scripts during development, at 360 px and on desktop, outside the repo and not in CI (§4).
+- **English interface only.** Arabic content works everywhere; an Arabic UI toggle is on the next-week list.
+- *(M4 findings that are accepted but not fixed are listed here after triage.)*

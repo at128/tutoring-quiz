@@ -2,7 +2,9 @@
 
 This repository is a 24-hour practical assessment for byThursday: an online quiz platform for Nour's tutoring centre in Amman (~300 students, 12 teachers).
 
-**Claude Code is the primary implementer** for backend, frontend, tests, runtime and CI. **OpenAI Codex is the independent reviewer** at checkpoints and during final adversarial review. The human (Atta) owns scope, architecture, acceptance/rejection of findings, pushes and submission.
+**Claude Code is the primary implementer** for backend, frontend, tests, runtime and CI. **OpenAI Codex is the independent reviewer** at checkpoints and during final adversarial review. The human (Atta) owns scope, architecture, acceptance/rejection of findings and submission.
+
+> **The plan changed during the work.** Codex implemented B2/B3 while Claude Code was at its usage limit. Work lands as one pull request per milestone, which Claude Code merges only after CI is green. When both agents work in the same folder, they coordinate through the local `AGENT_CHANNEL.md`. Details: `docs/WORKFLOW.md` → "What actually happened".
 
 ## Source of truth (read what the current task needs)
 - `docs/BRIEF.md` — client brief + assessment requirements
@@ -58,7 +60,9 @@ Whole app:
 - Required tests exist and pass (`dotnet test`; frontend `npm run build` and `npm run lint`).
 - Behaviour matches docs; every deviation is listed in the report.
 - Work is committed in small logical Conventional Commits (`feat(api): …`, `test(domain): …`, `feat(web): …`, `fix(api): …`). No `wip`, `fix2`, `final`.
-- Claude Code never pushes, merges, rebases or rewrites history; the human does that.
+- One pull request per milestone. Claude Code pushes the branch and merges it (merge commit) only after the backend, frontend and Docker CI jobs are green on the PR's head commit. Nobody force-pushes, rebases or rewrites pushed history.
+- Two agents in one working tree: read `AGENT_CHANNEL.md` before starting and before any git write. Take and release the git lock there, stage by explicit path only (never `add -A`/`.`, `commit -a`, `stash`, `reset --hard`, `checkout --`, `clean`), and ask before editing a file the other agent owns.
+- Nothing about servers or SSH goes into the repository or GitHub (keys, addresses, deploy secrets). The live demo pulls from the server side (`deploy/README.md`).
 - Claude Code appends a short factual entry to `docs/ai-log/claude-code.md`.
 
 ## Implementation report format
@@ -87,6 +91,6 @@ When asked to review:
 - Append a short note to `docs/ai-log/codex.md` only if Codex actually performed the review.
 
 ## Roles
-- **Claude Code** — primary implementer for the entire application on `main`.
-- **Codex** — independent reviewer at C1/C2/C3 and M4; no implementation ownership unless the human explicitly changes the plan later.
-- **Human** — scope/architecture owner, finding triage, pushes, final docs, submission.
+- **Claude Code**: primary implementer for the entire application; it opens and merges the milestone PRs after green CI.
+- **Codex**: independent reviewer at C1/C2/C3 and M4. Atta did change the plan: Codex implemented F1 fixes and B2/B3, and later audited handlers in parallel with F3.
+- **Human**: scope/architecture owner, finding triage, final docs, submission.

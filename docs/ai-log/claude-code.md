@@ -40,3 +40,18 @@ From Codex's audit: included its HF-01 list refresh at the next opening/closing 
 Checked: `npm run typecheck` 0 errors · oxlint exit 0 · Vitest 41/41 on a clean export of the branch head (55/55 with Codex's uncommitted tests in the tree) · `npm run build` ok. Playwright on Edge (Asia/Amman) against the dev API: list, editor (problems, publish, mobile draft), locked view and results on desktop and 360 px, compared with prototype renders; an untouched save PUTs the exact stored times, an edited time converts correctly.
 Unsure about / assumptions: the impossible-time message ("That date and time doesn't exist in your time zone. Choose another.") is new copy, since the prototype has no such state. Integration tests and Docker were not re-run for this frontend-only milestone.
 Human changed or rejected: Atta asked the two agents to coordinate directly ("نسقوا مع بعض") and to talk through a shared file.
+
+### Live demo, login limit, M5 drafts — 2026-09-24 morning
+Asked to: set up CI/CD to https://quiz.just-atta.site on Atta's server without breaking anything on it; keep coordinating with Codex; make README/DECISIONS/AI_USAGE accurate.
+Did:
+- **Server survey first.** Listening ports (80/443/8080 Traefik, 8000 Coolify, 6001-2, 22). Traefik v3.6 settings (`coolify` network, `letsencrypt` resolver). Existing Host rules: none for `quiz.`, and the only catch-all has priority -1000.
+- **First attempt, stopped by Atta.** A push deploy with a restricted forced-command key meant to be stored as a GitHub secret. Atta stopped it ("no SSH on GitHub"). Nothing had been uploaded; I removed the key, user and sudo rule from the server and deleted the local key.
+- **Rebuilt as a server-side pull (PR #8).** A systemd timer runs `tq-deploy poll` every minute: `git ls-remote` → the CI verdict from the public API → build on the server → health check through Traefik → rollback on failure. No host port, only additions on the server.
+- **Login limit (PR #9, approved by Atta).** Changed from 10/min per IP to 10/min per IP + username in the login action, plus a 100/min per-IP middleware cap, because a class on one Wi-Fi shares an IP.
+- **Docs.** Drafted README, DECISIONS §3/§4/§5/§6, AI_USAGE, and the workflow docs, which now record what actually happened.
+Checked:
+- **Live demo:** first deploy healthy in 42 s. Externally: `/api/health` 200; HTTP→HTTPS 302; a Let's Encrypt certificate; deep links serve the SPA; the login cookie is `secure; httponly; samesite=strict`; the server's other sites unchanged; listening ports unchanged; Playwright smoke test on the live site (student at 360 px, teacher on desktop) with no errors.
+- **Clean run:** `docker compose up --build` from a clean export of `main` seeded 3/4/60/5/36 and served health, SPA routes and ProblemDetails 404s.
+- **Login-limit branch:** clean export `dotnet test -c Release` → 20 + 54 passed; CI green on PRs #8 and #9.
+Unsure about / assumptions: the pull deploy uses GitHub's unauthenticated API, which allows 60 requests/hour per IP. It's asked only while a new head waits for CI, and a failed call counts as "pending".
+Human changed or rejected: no SSH or server access on GitHub (pull deploy instead); login limit per IP + username approved; browser E2E tests kept out of scope.
