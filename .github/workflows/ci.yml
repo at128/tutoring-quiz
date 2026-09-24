@@ -41,3 +41,45 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build .
+
+  # Real browsers against the real container: Arabic phone and English desktop journeys (frontend/e2e).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_PORT: "18081"
+      E2E_BASE_URL: http://127.0.0.1:18081
+      E2E_OUTPUT_DIR: test-results
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck:e2e
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: docker compose -p tq-e2e up -d --build
+      - name: Wait for seeded app
+        run: |
+          for i in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:18081/api/health; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - run: npm run test:e2e
+        working-directory: frontend
+      - if: failure()
+        run: docker compose -p tq-e2e logs --tail=100
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-traces
+          path: frontend/test-results/
+          if-no-files-found: ignore
+      - if: always()
+        run: docker compose -p tq-e2e down
