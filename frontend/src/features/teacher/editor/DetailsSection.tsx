@@ -8,6 +8,7 @@ import type { Messages } from '../../../i18n/en'
 import type { EditorValues, PenaltyChoice, Problems } from './editorForm'
 import { localTimeZoneLabel, penaltyPercent } from './editorForm'
 import { FieldProblems, Hint, Label, TextArea, TextInput } from './fields'
+import { withWesternDigits } from './westernDigitsField'
 
 const penaltyOptions = (m: Messages['editor']): { value: PenaltyChoice; label: string }[] => [
   { value: '0', label: m.penaltyNone },
@@ -113,14 +114,12 @@ export function DetailsSection({ form, classRooms, problems }: Props) {
           <div className="flex items-center gap-2.5">
             <TextInput
               id="durationMinutes"
-              type="number"
-              lang="en"
+              type="text"
               inputMode="numeric"
-              min={1}
-              max={180}
+              autoComplete="off"
               invalid={!!problems.durationMinutes}
               className="w-[110px]"
-              {...register('durationMinutes')}
+              {...withWesternDigits(register('durationMinutes'))}
             />
             <span className="text-[15px] text-ink-2">{m.minutesUnit}</span>
           </div>
@@ -145,15 +144,13 @@ export function DetailsSection({ form, classRooms, problems }: Props) {
           <div className="flex items-center gap-2.5 pt-1">
             <TextInput
               aria-label={m.customAria}
-              type="number"
-              lang="en"
+              type="text"
               inputMode="numeric"
-              min={0}
-              max={100}
+              autoComplete="off"
               compact
               invalid={!!problems.wrongAnswerPenaltyPercent}
               className="w-[96px]"
-              {...register('customPenalty')}
+              {...withWesternDigits(register('customPenalty'))}
             />
             <span className="text-[15px] text-ink-2">{m.customUnit}</span>
           </div>

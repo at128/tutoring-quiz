@@ -8,6 +8,7 @@ import { useLanguage } from '../../../i18n/LanguageContext'
 import type { Messages } from '../../../i18n/en'
 import { emptyQuestion, LIMITS, problemsOfQuestion } from './editorForm'
 import { FieldProblems, TextArea, TextInput } from './fields'
+import { withWesternDigits } from './westernDigitsField'
 
 type Props = { form: UseFormReturn<EditorValues>; problems: Problems }
 
@@ -167,15 +168,13 @@ function QuestionEditor({ form, index, count, problems, onMove, onRemove }: Edit
             </label>
             <TextInput
               id={`q${index}-points`}
-              type="number"
-              lang="en"
+              type="text"
               inputMode="numeric"
-              min={LIMITS.pointsMin}
-              max={LIMITS.pointsMax}
+              autoComplete="off"
               compact
               invalid={!!problems[`${prefix}.points`]}
               className="w-[72px] px-2.5"
-              {...register(`questions.${index}.points`)}
+              {...withWesternDigits(register(`questions.${index}.points`))}
             />
           </div>
         </div>
