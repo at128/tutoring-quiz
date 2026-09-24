@@ -61,14 +61,35 @@ public sealed class QuizScoringTests
     }
 
     [Fact] // D4
-    public void Calculate_AllWrongWithHalfPenalty_GoesNegativeAndIsNotClamped()
+    public void Calculate_AllWrongWithHalfPenalty_StopsAtZero()
     {
         var answers = Questions.ToDictionary(q => q.QuestionId, q => WrongFor(0));
 
         var result = QuizScoring.Calculate(Questions, answers, wrongAnswerPenaltyPercent: 50);
 
-        Assert.Equal(-4.5m, result.Score);
-        Assert.Equal(-50.0m, result.Percentage);
+        Assert.Equal(0m, result.Score); // −4.5 before the floor
+        Assert.Equal(0m, result.Percentage);
+        Assert.Equal(Questions.Length, result.WrongCount);
+    }
+
+    [Fact]
+    public void Calculate_DeductionsLargerThanTheEarnedPoints_StopAtZero_WhileSmallerOnesStillCount()
+    {
+        ScoringQuestion[] questions = [new(Guid.NewGuid(), 1, Guid.NewGuid()), new(Guid.NewGuid(), 6, Guid.NewGuid())];
+
+        var tooMuch = QuizScoring.Calculate(questions, new Dictionary<Guid, Guid?>
+        {
+            [questions[0].QuestionId] = questions[0].CorrectOptionId, // +1
+            [questions[1].QuestionId] = Guid.NewGuid(), // −3
+        }, 50);
+        Assert.Equal((0m, 0m, 1, 1), (tooMuch.Score, tooMuch.Percentage, tooMuch.CorrectCount, tooMuch.WrongCount));
+
+        var justEnough = QuizScoring.Calculate(questions, new Dictionary<Guid, Guid?>
+        {
+            [questions[0].QuestionId] = Guid.NewGuid(), // −0.25
+            [questions[1].QuestionId] = questions[1].CorrectOptionId, // +6
+        }, 25);
+        Assert.Equal(5.75m, justEnough.Score);
     }
 
     [Fact] // D5
@@ -81,10 +102,13 @@ public sealed class QuizScoringTests
             new(Guid.NewGuid(), 6, Guid.NewGuid()),
         ];
 
-        // 33 % of 1 point.
-        var thirdOfAPoint = QuizScoring.Calculate(
-            questions, new Dictionary<Guid, Guid?> { [questions[0].QuestionId] = Guid.NewGuid() }, 33);
-        Assert.Equal(-0.33m, thirdOfAPoint.Score);
+        // +1 − 33 % of 1 point.
+        var thirdOfAPoint = QuizScoring.Calculate(questions, new Dictionary<Guid, Guid?>
+        {
+            [questions[0].QuestionId] = questions[0].CorrectOptionId,
+            [questions[1].QuestionId] = Guid.NewGuid(),
+        }, 33);
+        Assert.Equal(0.67m, thirdOfAPoint.Score);
         Assert.Equal(2, thirdOfAPoint.Score.Scale);
 
         // +1 − 0.5 = 0.5 of 8 → 6.25 % → 6.3 (away from zero, not banker's 6.2).
@@ -96,9 +120,13 @@ public sealed class QuizScoringTests
         Assert.Equal(0.5m, positiveMidpoint.Score);
         Assert.Equal(6.3m, positiveMidpoint.Percentage);
 
-        // −0.5 of 8 → −6.25 % → −6.3.
-        var negativeMidpoint = QuizScoring.Calculate(
-            questions, new Dictionary<Guid, Guid?> { [questions[0].QuestionId] = Guid.NewGuid() }, 50);
-        Assert.Equal(-6.3m, negativeMidpoint.Percentage);
+        // +6 − 0.5 = 5.5 of 8 → 68.75 % → 68.8 (away from zero).
+        var upperMidpoint = QuizScoring.Calculate(questions, new Dictionary<Guid, Guid?>
+        {
+            [questions[0].QuestionId] = Guid.NewGuid(),
+            [questions[2].QuestionId] = questions[2].CorrectOptionId,
+        }, 50);
+        Assert.Equal(5.5m, upperMidpoint.Score);
+        Assert.Equal(68.8m, upperMidpoint.Percentage);
     }
 }

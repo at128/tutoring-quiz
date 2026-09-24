@@ -180,7 +180,7 @@ function QuizCardTeacher({ quiz, nowMs }: { quiz: TeacherQuizSummary; nowMs: num
   return (
     <article className="flex flex-col gap-3 rounded-sheet border border-rule bg-paper p-4">
       <StateBadges quiz={quiz} />
-      <h3 dir="auto" className="auto-text text-card leading-[1.45] font-bold">
+      <h3 dir="auto" className="auto-text w-fit max-w-full text-card leading-[1.45] font-bold">
         <Link to={editPath(quiz.id)}>{quiz.title}</Link>
       </h3>
       <ClassesAndSize quiz={quiz} long />

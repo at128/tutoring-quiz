@@ -183,11 +183,14 @@ describe('Arabic results', () => {
 describe('Arabic result explanation', () => {
   const result = (score: number, wrongCount: number, penalty: number) => ({ score, wrongCount, wrongAnswerPenaltyPercent: penalty }) as AttemptResult
 
-  it('covers no marking, below zero, no wrong answers and some wrong answers', () => {
+  it('covers no marking, a score stopped at zero, no wrong answers and some wrong answers', () => {
     expect(scoringExplanation(result(5, 2, 0), ar)).toBe(ar.result.noMarking)
-    expect(stripIsolates(scoringExplanation(result(-1.5, 6, 25), ar))).toBe(
-      'في هذا الاختبار علامات سالبة: كل إجابة خاطئة خسرت 25% من علامة سؤالها. مجموعك أقل من صفر لأن الخصم كان أكبر من العلامات التي حصلت عليها.',
+    expect(stripIsolates(scoringExplanation(result(0, 6, 25), ar))).toBe(
+      'في هذا الاختبار علامات سالبة: كل إجابة خاطئة خسرت 25% من علامة سؤالها. خصمت إجاباتك الخاطئة ما يساوي العلامات التي حصلت عليها أو أكثر، والعلامة لا تنزل أبدًا عن صفر.',
     )
+    // Zero with no wrong answers (nothing answered) is not a deduction.
+    expect(scoringExplanation(result(0, 0, 25), ar)).toContain(ar.result.noWrong)
+    expect(scoringExplanation(result(0, 2, 0), ar)).toBe(ar.result.noMarking)
     expect(scoringExplanation(result(10, 0, 25), ar)).toContain(ar.result.noWrong)
     expect(scoringExplanation(result(7, 3, 25), ar)).toContain('الإجابات الخاطئة (3)')
   })

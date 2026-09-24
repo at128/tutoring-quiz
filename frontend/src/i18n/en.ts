@@ -245,7 +245,7 @@ export const en = {
     zeroPoints: '× 0 points',
     noMarking: 'This quiz has no negative marking: wrong and unanswered questions scored zero.',
     markingRule: (percent: number) => `This quiz uses negative marking: each wrong answer lost ${percent}% of its points.`,
-    belowZero: 'Your total is below zero because the deductions were larger than the points you earned.',
+    stoppedAtZero: 'Your wrong answers took away at least as much as you earned, and a score never goes below 0.',
     noWrong: 'You had no wrong answers, so nothing was deducted.',
     wrongLowered: (n: number) =>
       `${n === 1 ? 'Your 1 wrong answer' : `Your ${n} wrong answers`} lowered your score; unanswered questions didn’t.`,
@@ -368,7 +368,8 @@ export const en = {
     customAria: 'Custom negative marking in percent',
     customUnit: '% of the question’s points',
     markingHintNone: 'Wrong answers cost nothing. Unanswered questions always score 0.',
-    markingHint: (percent: number) => `A wrong answer loses ${percent}% of that question’s points. Unanswered questions always score 0.`,
+    markingHint: (percent: number) =>
+      `A wrong answer loses ${percent}% of that question’s points, but a total never goes below 0. Unanswered questions always score 0.`,
     timeZone: (city: string | null) => (city ? `${city} time` : 'Local time'),
     questions: 'Questions',
     totalPoints: (n: number) => `Total ${n} points`,

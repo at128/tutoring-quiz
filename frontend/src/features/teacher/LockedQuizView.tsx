@@ -31,7 +31,7 @@ export function LockedQuizView({ view }: { view: QuizEditorView }) {
           <Badge kind={view.state} />
           <Badge kind="Locked" />
         </div>
-        <h1 dir="auto" className="auto-text text-page leading-[1.45] font-bold md:text-display">
+        <h1 dir="auto" className="auto-text w-fit max-w-full text-page leading-[1.45] font-bold md:text-display">
           {view.title}
         </h1>
       </div>

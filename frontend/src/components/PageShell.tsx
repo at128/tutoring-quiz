@@ -139,7 +139,7 @@ function StudentBar({ back }: { back?: BackTarget }) {
           <div className="flex min-w-0 items-center gap-0.5">
             <LanguageToggle compact />
             <div className="flex min-w-0 flex-col items-end">
-              <span dir="auto" className="max-w-[130px] truncate text-meta font-semibold text-ink sm:max-w-[240px]">
+              <span dir="auto" className="max-w-[min(130px,100%)] truncate text-meta font-semibold text-ink sm:max-w-[min(240px,100%)]">
                 {user.fullName}
               </span>
               {user.classRoom && <span className="text-[12px] text-muted">{t.shell.className(user.classRoom.name)}</span>}

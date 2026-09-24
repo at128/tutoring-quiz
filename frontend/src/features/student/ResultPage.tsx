@@ -76,7 +76,7 @@ function ResultSheet({ result }: { result: AttemptResult }) {
             <Badge kind={result.status} />
             <span className="text-meta text-muted">{formatDateTime(result.finalizedAt, lang)}</span>
           </div>
-          <h1 dir="auto" className="auto-text text-[20px] leading-[1.45] font-bold">
+          <h1 dir="auto" className="auto-text w-fit max-w-full text-[20px] leading-[1.45] font-bold">
             {result.quizTitle}
           </h1>
         </div>

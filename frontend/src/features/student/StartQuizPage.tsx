@@ -200,7 +200,7 @@ function DetailsSheet({ quiz, nowMs }: { quiz: StudentQuizCard; nowMs: number })
     <section className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-[18px]">
       <div className="flex flex-col gap-2.5">
         <Badge kind={quiz.status} />
-        <h1 dir="auto" className="auto-text text-[24px] leading-[1.45] font-bold">
+        <h1 dir="auto" className="auto-text w-fit max-w-full text-[24px] leading-[1.45] font-bold">
           {quiz.title}
         </h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-small text-ink-2">

@@ -5,7 +5,8 @@
 # See deploy/README.md.
 set -euo pipefail
 
-readonly HERE=$(cd "$(dirname "$0")" && pwd)
+HERE=$(cd "$(dirname "$0")" && pwd)
+readonly HERE
 readonly ROOT=/opt/tutoring-quiz
 readonly REPO=https://github.com/at128/tutoring-quiz.git
 readonly UNIT=tutoring-quiz-deploy

@@ -86,7 +86,7 @@ function Results({ data, refreshing, onRefresh }: { data: QuizResults; refreshin
             <Badge kind={quiz.state} />
             {data.rows.some((r) => r.attemptId) && <Badge kind="Locked" />}
           </div>
-          <h1 dir="auto" className="auto-text text-page leading-[1.3] font-bold md:text-display md:leading-[1.45]">
+          <h1 dir="auto" className="auto-text w-fit max-w-full text-page leading-[1.3] font-bold md:text-display md:leading-[1.45]">
             {quiz.title}
           </h1>
           <p className="text-small leading-normal text-muted">
