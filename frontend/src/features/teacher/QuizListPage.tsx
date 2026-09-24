@@ -13,6 +13,8 @@ import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTime } from '../../lib/time'
 import { useServerNow } from '../../lib/useServerNow'
 import { hasResults, progressOf } from './teacherCopy'
+import { markingOf } from '../../lib/marking'
+import { markingInlineText, markingShortText } from './teacherMarking'
 import { teacherListRefreshDelay } from './teacherListRefresh'
 
 const editPath = (id: string) => `/teacher/quizzes/${id}/edit`
@@ -92,7 +94,7 @@ function ClassesAndSize({ quiz, long = false }: { quiz: TeacherQuizSummary; long
       ))}
       <span className="text-meta text-muted">
         {t.teacher.questionsAndPoints(quiz.questionCount, quiz.maxScore)}
-        {long && ` · ${t.teacher.minutesShort(quiz.durationMinutes)} · ${t.teacher.markingInline(quiz.wrongAnswerPenaltyPercent)}`}
+        {long && ` · ${t.teacher.minutesShort(quiz.durationMinutes)} · ${markingInlineText(markingOf(quiz), t)}`}
       </span>
     </div>
   )
@@ -157,7 +159,7 @@ function QuizTable({ quizzes, nowMs }: { quizzes: TeacherQuizSummary[]; nowMs: n
             </div>
             <div role="cell" className="text-small leading-[1.55] text-ink-2">
               <div>{t.teacher.minutesShort(quiz.durationMinutes)}</div>
-              <div>{t.teacher.markingShort(quiz.wrongAnswerPenaltyPercent)}</div>
+              <div>{markingShortText(markingOf(quiz), t)}</div>
             </div>
             <div role="cell" className="flex flex-col gap-0.5">
               <span className="text-body font-bold">{progress.value ?? '—'}</span>

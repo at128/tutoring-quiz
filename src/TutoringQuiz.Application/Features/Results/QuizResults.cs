@@ -8,7 +8,8 @@ public enum ResultRowStatus { NotStarted, InProgress, Submitted, Expired, Missed
 
 public sealed record QuizResultHeader(
     Guid Id, string Title, DateTime OpensAt, DateTime ClosesAt, int DurationMinutes,
-    int WrongAnswerPenaltyPercent, int MaxScore, TeacherQuizState State);
+    int WrongAnswerPenaltyPercent, decimal? WrongAnswerPenaltyPoints, int MaxScore, TeacherQuizState State,
+    bool ScoresVisibleToStudents);
 
 public sealed record QuizResultSummary(
     int AssignedCount, int StartedCount, int FinalizedCount,
@@ -17,7 +18,7 @@ public sealed record QuizResultSummary(
 public sealed record QuizResultRow(
     Guid StudentId, string FullName, string Username, string ClassRoom,
     ResultRowStatus Status, Guid? AttemptId, DateTime? StartedAt, DateTime? FinalizedAt,
-    decimal? Score, int MaxScore, decimal? Percentage);
+    decimal? Score, int MaxScore, decimal? Percentage, DateTime? RegradedAt);
 
 public sealed record QuizResults(
     QuizResultHeader Quiz, QuizResultSummary Summary, IReadOnlyList<QuizResultRow> Rows);
@@ -35,7 +36,7 @@ internal static class QuizResultsPolicy
                 return new QuizResultRow(student.Id, student.FullName, student.Username,
                     classNames[student.ClassRoomId!.Value], Status(attempt, quiz, nowUtc),
                     attempt?.Id, attempt?.StartedAtUtc, attempt?.FinalizedAtUtc,
-                    attempt?.Score, attempt?.MaxScore ?? quiz.MaxScore, attempt?.Percentage);
+                    attempt?.Score, attempt?.MaxScore ?? quiz.MaxScore, attempt?.Percentage, attempt?.RegradedAtUtc);
             })
             .OrderBy(row => row.ClassRoom, StringComparer.OrdinalIgnoreCase)
             .ThenBy(row => row.FullName, StringComparer.OrdinalIgnoreCase)
@@ -50,7 +51,8 @@ internal static class QuizResultsPolicy
             Average(scored.Select(row => row.Percentage!.Value), 1));
 
         return new QuizResults(new QuizResultHeader(quiz.Id, quiz.Title, quiz.OpensAtUtc, quiz.ClosesAtUtc,
-            quiz.DurationMinutes, quiz.WrongAnswerPenaltyPercent, quiz.MaxScore, quiz.StateAt(nowUtc)),
+            quiz.DurationMinutes, quiz.WrongAnswerPenaltyPercent, quiz.WrongAnswerPenaltyPoints, quiz.MaxScore, quiz.StateAt(nowUtc),
+            quiz.ScoresVisibleToStudents),
             summary, rows);
     }
 

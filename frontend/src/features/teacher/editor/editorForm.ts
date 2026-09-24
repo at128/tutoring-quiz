@@ -7,12 +7,17 @@ import { formatDateTime } from '../../../lib/time'
 // (docs/DOMAIN.md → Validation limits). Problems are keyed exactly like the server's `errors`
 // (`title`, `questions[2].options`, …) so client and server messages land on the same fields.
 
-export type PenaltyChoice = '0' | '25' | '33' | '50' | 'custom'
+/** '0' = none; a percentage preset or 'custom' percent; 'points' = a fixed mark per wrong answer. */
+export type PenaltyChoice = '0' | '25' | '33' | '50' | 'custom' | 'points'
 export const PENALTY_PRESETS: PenaltyChoice[] = ['0', '25', '33', '50']
 
-export type OptionValues = { text: string }
-/** `uid` only identifies the question inside the editor (open/closed state); it is never sent. */
-export type QuestionValues = { uid: string; text: string; points: string; correct: string; options: OptionValues[] }
+/** `serverId`: the saved option's id, sent back so students' answers stay attached to it (absent when new). */
+export type OptionValues = { text: string; serverId?: string }
+/**
+ * `uid` only identifies the question inside the editor (open/closed state); it is never sent. `serverId` is the saved
+ * question's id, sent back so the question keeps its identity and its students' answers (absent when new).
+ */
+export type QuestionValues = { uid: string; serverId?: string; text: string; points: string; correct: string; options: OptionValues[] }
 export type EditorValues = {
   title: string
   description: string
@@ -25,6 +30,10 @@ export type EditorValues = {
   durationMinutes: string
   penalty: PenaltyChoice
   customPenalty: string
+  /** The fixed mark a wrong answer loses, when `penalty` is 'points'. */
+  penaltyPoints?: string
+  /** Show scores to students (true when absent). */
+  scoresVisible?: boolean
   questions: QuestionValues[]
 }
 
@@ -107,12 +116,15 @@ export function emptyForm(nowMs: number): EditorValues {
     durationMinutes: '20',
     penalty: '0',
     customPenalty: '',
+    penaltyPoints: '',
+    scoresVisible: true,
     questions: [emptyQuestion()],
   }
 }
 
 export function fromView(view: QuizEditorView): EditorValues {
-  const preset = PENALTY_PRESETS.find((p) => Number(p) === view.wrongAnswerPenaltyPercent)
+  const fixedPoints = view.wrongAnswerPenaltyPoints
+  const preset = fixedPoints == null ? PENALTY_PRESETS.find((p) => Number(p) === view.wrongAnswerPenaltyPercent) : undefined
   return {
     title: view.title,
     description: view.description ?? '',
@@ -121,8 +133,10 @@ export function fromView(view: QuizEditorView): EditorValues {
     closesAt: toLocalInput(view.closesAt),
     stored: { opensAt: view.opensAt, closesAt: view.closesAt },
     durationMinutes: String(view.durationMinutes),
-    penalty: preset ?? 'custom',
-    customPenalty: preset ? '' : String(view.wrongAnswerPenaltyPercent),
+    penalty: fixedPoints != null ? 'points' : (preset ?? 'custom'),
+    customPenalty: fixedPoints != null || preset ? '' : String(view.wrongAnswerPenaltyPercent),
+    penaltyPoints: fixedPoints != null ? String(fixedPoints) : '',
+    scoresVisible: view.scoresVisibleToStudents,
     questions: [...view.questions]
       .sort((a, b) => a.order - b.order)
       .map((q) => {
@@ -130,10 +144,11 @@ export function fromView(view: QuizEditorView): EditorValues {
         const correct = options.findIndex((o) => o.isCorrect)
         return {
           uid: q.id,
+          serverId: q.id,
           text: q.text,
           points: String(q.points),
           correct: correct >= 0 ? String(correct) : '',
-          options: options.map((o) => ({ text: o.text })),
+          options: options.map((o) => ({ text: o.text, serverId: o.id })),
         }
       }),
   }
@@ -149,7 +164,17 @@ const toInt = (value: string): number | null => {
 }
 
 export const penaltyPercent = (values: Pick<EditorValues, 'penalty' | 'customPenalty'>): number | null =>
-  values.penalty === 'custom' ? toInt(values.customPenalty) : Number(values.penalty)
+  values.penalty === 'points' ? 0 : values.penalty === 'custom' ? toInt(values.customPenalty) : Number(values.penalty)
+
+/** "0.5", ".5", "0,5" or "٠٫٥" → 0.5; at most 2 decimals, otherwise null. */
+const toDecimal = (value: string): number | null => {
+  const text = westernDigits(value).trim().replace(/[٫,]/g, '.')
+  return /^(\d+(\.\d{1,2})?|\.\d{1,2})$/.test(text) ? Number(text) : null
+}
+
+/** The fixed mark a wrong answer loses, or null when the quiz uses a percentage (or the value is not a number). */
+export const penaltyPointsOf = (values: Pick<EditorValues, 'penalty' | 'penaltyPoints'>): number | null =>
+  values.penalty === 'points' ? toDecimal(values.penaltyPoints ?? '') : null
 
 /** Only called once validation passed, so every number parses. */
 export function toUpsert(values: EditorValues): QuizUpsert {
@@ -161,10 +186,13 @@ export function toUpsert(values: EditorValues): QuizUpsert {
     closesAt: instantOf(values.closesAt, values.stored.closesAt) ?? '',
     durationMinutes: toInt(values.durationMinutes) ?? 0,
     wrongAnswerPenaltyPercent: penaltyPercent(values) ?? 0,
+    wrongAnswerPenaltyPoints: penaltyPointsOf(values),
+    scoresVisibleToStudents: values.scoresVisible ?? true,
     questions: values.questions.map((q) => ({
+      id: q.serverId ?? null,
       text: q.text.trim(),
       points: toInt(q.points) ?? 0,
-      options: q.options.map((o, j) => ({ text: o.text.trim(), isCorrect: String(j) === q.correct })),
+      options: q.options.map((o, j) => ({ id: o.serverId ?? null, text: o.text.trim(), isCorrect: String(j) === q.correct })),
     })),
   }
 }
@@ -206,7 +234,10 @@ export function validate(values: EditorValues, intent: Intent, nowMs: number, m:
     add('durationMinutes', m.durationRange(LIMITS.durationMin, LIMITS.durationMax))
 
   const penalty = penaltyPercent(values)
-  if (penalty === null || penalty < 0 || penalty > 100) add('wrongAnswerPenaltyPercent', m.penaltyRange)
+  if (values.penalty === 'points') {
+    const points = penaltyPointsOf(values)
+    if (points === null || points <= 0 || points > 100) add('wrongAnswerPenaltyPoints', m.penaltyPointsRange)
+  } else if (penalty === null || penalty < 0 || penalty > 100) add('wrongAnswerPenaltyPercent', m.penaltyRange)
 
   if (values.questions.length > LIMITS.questionsMax) add('questions', m.questionsMax(LIMITS.questionsMax))
   if (intent === 'publish' && values.questions.length === 0) add('questions', m.questionsMin)

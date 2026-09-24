@@ -1,5 +1,5 @@
 import { request } from './client'
-import type { QuizEditorView, QuizResults, QuizUpsert, TeacherClassRoom, TeacherQuizSummary } from './types'
+import type { QuizEditorView, QuizResults, QuizUpsert, TeacherAttemptDetail, TeacherClassRoom, TeacherQuizSummary } from './types'
 
 export const teacherKeys = {
   all: ['teacher'] as const,
@@ -7,6 +7,7 @@ export const teacherKeys = {
   quizzes: () => [...teacherKeys.all, 'quizzes'] as const,
   quiz: (id: string) => [...teacherKeys.all, 'quiz', id] as const,
   results: (id: string) => [...teacherKeys.all, 'results', id] as const,
+  attempt: (quizId: string, attemptId: string) => [...teacherKeys.all, 'attempt', quizId, attemptId] as const,
 }
 
 export const listClassRooms = (signal?: AbortSignal) =>
@@ -34,3 +35,10 @@ export const deleteTeacherQuiz = (id: string) => request<void>('DELETE', `/api/t
 
 export const getQuizResults = (id: string, signal?: AbortSignal) =>
   request<QuizResults>('GET', `/api/teacher/quizzes/${id}/results`, { signal })
+
+/** Shows or hides scores from students (allowed in every state; it never changes a score). */
+export const setScoreVisibility = (id: string, scoresVisibleToStudents: boolean) =>
+  request<QuizEditorView>('PUT', `/api/teacher/quizzes/${id}/score-visibility`, { body: { scoresVisibleToStudents } })
+
+export const getTeacherAttempt = (quizId: string, attemptId: string, signal?: AbortSignal) =>
+  request<TeacherAttemptDetail>('GET', `/api/teacher/quizzes/${quizId}/attempts/${attemptId}`, { signal })

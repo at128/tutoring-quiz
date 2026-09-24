@@ -9,7 +9,7 @@ Test the rules that would hurt Nour if they broke — one attempt per student, t
 - Demo seeding is disabled in `Testing`. Each test builds its own small data set through a `TestData` builder (one class, one teacher, a few students, a quiz with 3–4 questions with known points and penalty) written directly through the DbContext.
 - Helper `LoginAsync(client, username, password)`; clients keep cookies. For "two tabs" scenarios, log two clients in as the same student.
 - xUnit asserts only (no FluentAssertions).
-- Frontend: `npm run build` (type-check) and `npm run lint` are the gate. A couple of Vitest unit tests for `lib/time.ts` (countdown with server offset) are welcome if cheap, not required.
+- Frontend: `npm run lint`, `npm run typecheck`, the Vitest unit tests (answers/autosave, timer, server clock, editor validation, results sorting, the Arabic interface and its dictionaries) and `npm run build` are the gate. Browser journeys are Playwright tests (below), run in CI.
 
 ## Required tests
 ### Domain (`TutoringQuiz.Domain.Tests`) — pure, fast
@@ -46,6 +46,16 @@ Test the rules that would hurt Nour if they broke — one attempt per student, t
 | I14 | Teacher results include NotStarted/Missed rows and lazily finalize an abandoned attempt |
 | I15 | Login: valid → cookie is HttpOnly; invalid → 401 `auth.invalid_credentials`; username is case-insensitive |
 | I16 | Submit is idempotent: second submit returns the same result |
+
+### Added on 24 Sep with the teacher controls
+| Tests | What they pin down |
+|---|---|
+| `QuizScoringTests`, `WrongAnswerPenaltyRulesTests`, `FixedDeductionTests` | a fixed mark per wrong answer, capped at the question's points; validation; the zero floor |
+| `ScoreFloorMigrationTests` | stored negative totals are raised to 0 by the migration (migrate down and up) |
+| `ClosedQuizRegradeTests`, `QuizRegradeDomainTests` (Codex) | edits refused while open, allowed after the close; every attempt regraded atomically (answer key, points, marking, added and removed questions, removed chosen options); statuses, times and selections unchanged; ids kept |
+| `TeacherAttemptDetailTests` (Codex) | the teacher's answer view: selected and correct options, outcomes, points and deductions, agreement with the results row; 404 for another teacher |
+| `ScoreVisibilityTests` (Codex) | hidden scores are absent from every student response (result, submit, attempt view, quiz list), live toggling, the teacher still sees everything, existing quizzes default to visible |
+| `editorIdentity.test.ts`, `marking.test.ts` | the editor sends question/option ids and the visibility flag; fixed-mark parsing (including ٠٫٥) and validation; marking texts |
 
 ### Browser end-to-end (`frontend/e2e`, Playwright) — added 24 Sep at Atta's request
 Run in CI against the real Docker container (`npm run test:e2e`, base URL `E2E_BASE_URL`, default `http://127.0.0.1:18081`):

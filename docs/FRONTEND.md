@@ -3,7 +3,7 @@
 Implementation owner: Claude Code. Lives in `frontend/`. Talks only to the API in `docs/API.md`. Codex reviews the frontend independently at checkpoints.
 
 ## Stack (keep it small)
-React + TypeScript (strict) + Vite, Tailwind CSS, React Router, TanStack Query, React Hook Form for the quiz editor. Linting via the Vite template (the current `create-vite` template ships **oxlint**, not ESLint; `react/rules-of-hooks` and `react/exhaustive-deps` are enabled). No UI kit, no Redux, no Playwright. Use the latest stable versions and their current setup docs (e.g. Tailwind's Vite plugin).
+React + TypeScript (strict) + Vite, Tailwind CSS, React Router, TanStack Query, React Hook Form for the quiz editor. Linting via the Vite template (the current `create-vite` template ships **oxlint**, not ESLint; `react/rules-of-hooks` and `react/exhaustive-deps` are enabled). No UI kit, no Redux. (Playwright was added on 24 Sep for browser E2E tests in `frontend/e2e`, at Atta’s request.) Use the latest stable versions and their current setup docs (e.g. Tailwind's Vite plugin).
 
 ## Structure
 ```
@@ -56,7 +56,7 @@ frontend/src/
 - Every data view has explicit loading, empty and error states. Errors say what happened and what to do; they don't apologise.
 
 ## Arabic and direction
-- UI chrome is English (decision). All user-generated text (names, titles, questions, options, descriptions) is rendered with `dir="auto"` (use the `Auto` component or `<bdi>`), including inside inputs and textareas.
+- UI chrome was planned English-only; on 24 Sep the whole interface became **Arabic or English** (it follows the device, with a switch; `src/i18n`). All user-generated text (names, titles, questions, options, descriptions) is rendered with `dir="auto"` (use the `Auto` component or `<bdi>`), including inside inputs and textareas.
 - Use Tailwind **logical** utilities everywhere (`ms-*`, `me-*`, `ps-*`, `pe-*`, `start-*`, `end-*`, `text-start`) — never `ml/mr/pl/pr/left/right` for layout. This keeps a future Arabic UI toggle (stretch S4) cheap.
 - Numbers next to Arabic text: render scores in their own element with `dir="ltr"` so `−1.5` doesn't display as `1.5−`.
 - Font: one family that covers Arabic and Latin (e.g. IBM Plex Sans Arabic or Noto Sans Arabic), self-hosted via an `@fontsource` package so it works offline in Docker; system fallback stack.

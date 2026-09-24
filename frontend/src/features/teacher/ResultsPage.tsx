@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { isApiError } from '../../api/client'
 import { getQuizResults, teacherKeys } from '../../api/teacher'
 import type { QuizResults } from '../../api/types'
 import { Num } from '../../components/Auto'
 import { Badge } from '../../components/Badge'
-import { Button } from '../../components/Button'
+import { Button, ButtonLink } from '../../components/Button'
 import { Segmented } from '../../components/ClassChip'
 import { Icon } from '../../components/Icon'
 import { BackLink, PageShell } from '../../components/PageShell'
@@ -14,7 +14,9 @@ import { EmptyState, ErrorState, NotAvailableState, Skeleton } from '../../compo
 import { formatPercent, formatScore } from '../../lib/format'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTime, formatShortDate } from '../../lib/time'
+import { markingOf } from '../../lib/marking'
 import { localTimeZoneLabel } from './editor/editorForm'
+import { ScoreVisibilityControl } from './ScoreVisibilityControl'
 import {
   ALL,
   classFilters,
@@ -74,7 +76,8 @@ function Results({ data, refreshing, onRefresh }: { data: QuizResults; refreshin
   const counts = statusCounts(data.rows)
   const classes = [...new Set(data.rows.map((r) => r.classRoom))]
   const closed = quiz.state === 'Closed'
-  const marking = quiz.wrongAnswerPenaltyPercent === 0 ? m.markingNone : m.markingPer(quiz.wrongAnswerPenaltyPercent)
+  const rule = markingOf(quiz)
+  const marking = rule.kind === 'points' ? m.markingPerPoints(rule.points) : rule.kind === 'percent' ? m.markingPer(rule.percent) : m.markingNone
   const stat = (value: number | null) => (value === null ? '—' : formatScore(value))
   const statPercent = (value: number | null) => (value === null ? undefined : formatPercent(percentOf(value, quiz.maxScore) ?? 0))
 
@@ -84,7 +87,7 @@ function Results({ data, refreshing, onRefresh }: { data: QuizResults; refreshin
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex gap-2">
             <Badge kind={quiz.state} />
-            {data.rows.some((r) => r.attemptId) && <Badge kind="Locked" />}
+            {data.rows.some((r) => r.attemptId) && quiz.state !== 'Closed' && <Badge kind="Locked" />}
           </div>
           <h1 dir="auto" className="auto-text w-fit max-w-full text-page leading-[1.3] font-bold md:text-display md:leading-[1.45]">
             {quiz.title}
@@ -128,6 +131,8 @@ function Results({ data, refreshing, onRefresh }: { data: QuizResults; refreshin
       <p className="hidden text-small leading-normal text-muted md:block">
         {m.summaryNote(localTimeZoneLabel(t.editor))}
       </p>
+
+      <ScoreVisibilityControl quizId={quiz.id} visible={quiz.scoresVisibleToStudents} />
 
       {data.rows.length === 0 ? (
         <EmptyState icon="users" title={m.noStudentsTitle}>
@@ -235,6 +240,7 @@ function ResultsTable({
               {row.fullName}
             </span>
             <span className="font-mono text-[12px] text-muted">{row.username}</span>
+            {row.attemptId && <AnswersLink attemptId={row.attemptId} />}
           </div>
           <div role="cell" className="font-mono text-small text-ink-2">
             {row.classRoom}
@@ -325,6 +331,22 @@ function ResultCard({ row }: { row: ResultRow }) {
           </span>
         )}
       </div>
+      {row.attemptId && <AnswersLink attemptId={row.attemptId} block />}
     </article>
+  )
+}
+
+function AnswersLink({ attemptId, block = false }: { attemptId: string; block?: boolean }) {
+  const { t } = useLanguage()
+  const { quizId = '' } = useParams()
+  const to = `/teacher/quizzes/${quizId}/attempts/${attemptId}`
+  return block ? (
+    <ButtonLink to={to} variant="secondary" className="w-full">
+      {t.results.viewAnswers}
+    </ButtonLink>
+  ) : (
+    <Link to={to} className="inline-flex min-h-8 w-fit items-center text-meta font-semibold text-ink underline underline-offset-2 hover:text-ink-2">
+      {t.results.viewAnswers}
+    </Link>
   )
 }

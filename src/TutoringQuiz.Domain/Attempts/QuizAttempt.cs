@@ -26,6 +26,9 @@ public sealed class QuizAttempt : Entity
     public int? WrongCount { get; private set; }
     public int? UnansweredCount { get; private set; }
 
+    /// <summary>When the teacher last corrected the closed quiz and this result changed because of it.</summary>
+    public DateTime? RegradedAtUtc { get; private set; }
+
     /// <summary>Concurrency token, bumped by every answer save and by finalization.</summary>
     public int Version { get; private set; }
 
@@ -106,22 +109,55 @@ public sealed class QuizAttempt : Entity
         return true;
     }
 
-    private void Finalize(Quiz quiz, AttemptStatus status, DateTime finalizedAtUtc)
+    /// <summary>
+    /// Scores a finished attempt again against the quiz as it is now, after the teacher corrected the closed quiz.
+    /// Only the score and counts can change: the status, times and the student's answers stay exactly as they were.
+    /// Returns false when the result is unchanged.
+    /// </summary>
+    public bool Regrade(Quiz quiz, DateTime nowUtc)
+    {
+        if (!IsFinalized)
+            throw new InvalidOperationException("Only a finished attempt can be regraded.");
+
+        var breakdown = ScoreSheet(quiz).Breakdown;
+        if (breakdown.Score == Score && breakdown.MaxScore == MaxScore && breakdown.CorrectCount == CorrectCount &&
+            breakdown.WrongCount == WrongCount && breakdown.UnansweredCount == UnansweredCount)
+            return false;
+
+        Apply(breakdown);
+        RegradedAtUtc = nowUtc;
+        Version++;
+        return true;
+    }
+
+    /// <summary>
+    /// Question by question, how the quiz as it is now scores this attempt's answers. For a finished attempt its
+    /// breakdown equals the stored result, because every change to a quiz with attempts regrades them.
+    /// </summary>
+    public ScoreSheet ScoreSheet(Quiz quiz)
     {
         if (quiz.Id != QuizId)
             throw new InvalidOperationException("The attempt belongs to a different quiz.");
 
         // Answers are only ever saved at or before the deadline; the filter keeps that guarantee in scoring too.
-        var counted = _answers.Where(a => a.AnsweredAtUtc <= DeadlineUtc);
-        var breakdown = QuizScoring.Calculate(quiz.Questions, counted, quiz.WrongAnswerPenaltyPercent);
+        return QuizScoring.Explain(quiz.Questions, _answers.Where(a => a.AnsweredAtUtc <= DeadlineUtc), quiz.WrongAnswerPenalty);
+    }
 
+    private void Finalize(Quiz quiz, AttemptStatus status, DateTime finalizedAtUtc)
+    {
+        var breakdown = ScoreSheet(quiz).Breakdown;
         Status = status;
         FinalizedAtUtc = finalizedAtUtc;
+        Apply(breakdown);
+        Version++;
+    }
+
+    private void Apply(ScoreBreakdown breakdown)
+    {
         Score = breakdown.Score;
         MaxScore = breakdown.MaxScore;
         CorrectCount = breakdown.CorrectCount;
         WrongCount = breakdown.WrongCount;
         UnansweredCount = breakdown.UnansweredCount;
-        Version++;
     }
 }

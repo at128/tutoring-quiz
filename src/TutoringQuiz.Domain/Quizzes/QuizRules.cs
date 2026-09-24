@@ -16,6 +16,8 @@ public static class QuizRules
     public const int MaxDurationMinutes = 180;
     public const int MinPenaltyPercent = 0;
     public const int MaxPenaltyPercent = 100;
+    public const decimal MaxPenaltyPoints = MaxPoints;
+    public const int PenaltyPointsDecimals = 2;
     public const int MaxQuestions = 100;
     public const int QuestionTextMaxLength = 2000;
     public const int MinPoints = 1;
@@ -45,6 +47,14 @@ public static class QuizRules
             Add("durationMinutes", $"Time limit must be {MinDurationMinutes}–{MaxDurationMinutes} minutes.");
         if (details.WrongAnswerPenaltyPercent is < MinPenaltyPercent or > MaxPenaltyPercent)
             Add("wrongAnswerPenaltyPercent", $"Negative marking must be {MinPenaltyPercent}–{MaxPenaltyPercent} %.");
+        if (details.WrongAnswerPenaltyPoints is { } penaltyPoints)
+        {
+            if (details.WrongAnswerPenaltyPercent != 0)
+                Add("wrongAnswerPenaltyPercent", "Choose a percentage or a fixed number of points, not both.");
+            if (penaltyPoints is <= 0 or > MaxPenaltyPoints || decimal.Round(penaltyPoints, PenaltyPointsDecimals) != penaltyPoints)
+                Add("wrongAnswerPenaltyPoints",
+                    $"A fixed deduction must be more than 0 and at most {MaxPenaltyPoints} points, with at most {PenaltyPointsDecimals} decimals.");
+        }
         if (details.ClosesAtUtc <= details.OpensAtUtc)
             Add("closesAt", "Closing time must be after the opening time.");
         if (classRoomIds.Count == 0)

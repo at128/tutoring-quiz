@@ -10,7 +10,10 @@ import { Icon } from '../../components/Icon'
 import { BackLink, PageShell } from '../../components/PageShell'
 import { optionLabel } from '../../lib/dir'
 import { useLanguage } from '../../i18n/LanguageContext'
+import { markingOf } from '../../lib/marking'
 import { formatDateTimeWithYear } from '../../lib/time'
+import { ScoreVisibilityControl } from './ScoreVisibilityControl'
+import { markingText } from './teacherMarking'
 
 const OPEN_BY_DEFAULT = 3
 
@@ -51,6 +54,8 @@ export function LockedQuizView({ view }: { view: QuizEditorView }) {
         </ButtonLink>
       </div>
 
+      <ScoreVisibilityControl quizId={view.id} visible={view.scoresVisibleToStudents} />
+
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8">
         <div className="flex min-w-0 flex-col gap-6">
           <section className="flex flex-col gap-3.5 rounded-sheet border border-rule bg-paper p-5">
@@ -66,7 +71,7 @@ export function LockedQuizView({ view }: { view: QuizEditorView }) {
               <Row label={t.teacher.opens}>{formatDateTimeWithYear(view.opensAt, lang)}</Row>
               <Row label={t.teacher.closes}>{formatDateTimeWithYear(view.closesAt, lang)}</Row>
               <Row label={m.timeLimit}>{m.minutes(view.durationMinutes)}</Row>
-              <Row label={m.negativeMarking}>{t.teacher.markingLong(view.wrongAnswerPenaltyPercent)}</Row>
+              <Row label={m.negativeMarking}>{markingText(markingOf(view), t)}</Row>
               <Row label={m.maxScore}>{m.points(view.maxScore)}</Row>
             </dl>
             {view.description && (

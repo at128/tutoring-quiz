@@ -8,7 +8,7 @@ public sealed class GetTeacherQuizHandler(TeacherQuizAccess access, TimeProvider
     {
         var quiz = await access.OwnedQuizAsync(quizId, ct);
         var names = await access.ClassNamesAsync(quiz.ClassRooms.Select(c => c.ClassRoomId), ct);
-        var isLocked = await access.HasAttemptsAsync(quiz.Id, ct);
-        return TeacherQuizViews.Editor(quiz, names, isLocked, clock.GetUtcNow().UtcDateTime);
+        var hasAttempts = await access.HasAttemptsAsync(quiz.Id, ct);
+        return TeacherQuizViews.Editor(quiz, names, hasAttempts, clock.GetUtcNow().UtcDateTime);
     }
 }

@@ -7,11 +7,16 @@ namespace TutoringQuiz.Application.Features.TeacherQuizzes;
 public sealed record QuizUpsert(
     string? Title, string? Description, IReadOnlyList<Guid>? ClassRoomIds,
     DateTime? OpensAt, DateTime? ClosesAt, int? DurationMinutes,
-    int? WrongAnswerPenaltyPercent, IReadOnlyList<QuestionUpsert?>? Questions);
+    int? WrongAnswerPenaltyPercent, IReadOnlyList<QuestionUpsert?>? Questions,
+    decimal? WrongAnswerPenaltyPoints = null, // optional: a fixed deduction instead of a percentage
+    bool? ScoresVisibleToStudents = null); // optional, true when left out
 
-public sealed record QuestionUpsert(string? Text, int? Points, IReadOnlyList<OptionUpsert?>? Options);
+/// <param name="Id">An existing question of this quiz to update in place (students' answers stay attached); leave it
+/// out for a new question. An id the quiz doesn't have also makes a new question.</param>
+public sealed record QuestionUpsert(string? Text, int? Points, IReadOnlyList<OptionUpsert?>? Options, Guid? Id = null);
 
-public sealed record OptionUpsert(string? Text, bool? IsCorrect);
+/// <param name="Id">An existing option of the same question to update in place.</param>
+public sealed record OptionUpsert(string? Text, bool? IsCorrect, Guid? Id = null);
 
 internal sealed record QuizDraftData(
     QuizDetails Details, IReadOnlyList<Guid> ClassRoomIds, IReadOnlyList<QuestionDraft> Questions);
@@ -77,9 +82,10 @@ internal static class QuizUpsertMapper
         return new QuizDraftData(
             new QuizDetails(request.Title!, request.Description,
                 request.OpensAt!.Value, request.ClosesAt!.Value,
-                request.DurationMinutes!.Value, request.WrongAnswerPenaltyPercent!.Value),
+                request.DurationMinutes!.Value, request.WrongAnswerPenaltyPercent!.Value,
+                request.WrongAnswerPenaltyPoints, request.ScoresVisibleToStudents ?? true),
             request.ClassRoomIds!,
             request.Questions!.Select(q => new QuestionDraft(q!.Text!, q.Points!.Value,
-                q.Options!.Select(o => new OptionDraft(o!.Text!, o.IsCorrect!.Value)).ToList())).ToList());
+                q.Options!.Select(o => new OptionDraft(o!.Text!, o.IsCorrect!.Value, o.Id)).ToList(), q.Id)).ToList());
     }
 }

@@ -59,8 +59,22 @@ public sealed class TeacherQuizzesController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Shows or hides scores from students; allowed in every state (it never changes a score).</summary>
+    [HttpPut("quizzes/{id:guid}/score-visibility")]
+    [Consumes("application/json")]
+    public async Task<ActionResult<QuizEditorView>> ScoreVisibility(
+        Guid id, [FromBody] ScoreVisibilityRequest? request,
+        [FromServices] SetScoreVisibilityHandler handler, CancellationToken ct) =>
+        Ok(await handler.HandleAsync(id, request, ct));
+
     [HttpGet("quizzes/{id:guid}/results")]
     public async Task<ActionResult<QuizResults>> Results(
         Guid id, [FromServices] GetQuizResultsHandler handler, CancellationToken ct) =>
         Ok(await handler.HandleAsync(id, ct));
+
+    /// <summary>One student's answers, question by question, for the quiz's teacher.</summary>
+    [HttpGet("quizzes/{quizId:guid}/attempts/{attemptId:guid}")]
+    public async Task<ActionResult<TeacherAttemptDetail>> Attempt(
+        Guid quizId, Guid attemptId, [FromServices] GetTeacherAttemptHandler handler, CancellationToken ct) =>
+        Ok(await handler.HandleAsync(quizId, attemptId, ct));
 }

@@ -53,10 +53,13 @@ export type StudentQuizCard = {
   questionCount: number
   maxScore: number
   wrongAnswerPenaltyPercent: number
+  /** Set when a wrong answer costs a fixed number of points instead (then the percentage is 0). */
+  wrongAnswerPenaltyPoints: number | null
   status: StudentQuizStatus
   /** Only when Available: min(duration, minutes until close), rounded down. */
   effectiveMinutesIfStartedNow: number | null
-  attempt: { id: string; status: AttemptStatus; deadline: string; score: number | null; maxScore: number } | null
+  /** `score` is null while the attempt runs and whenever the teacher hides scores (`scoreVisible` false). */
+  attempt: { id: string; status: AttemptStatus; deadline: string; scoreVisible: boolean; score: number | null; maxScore: number } | null
 }
 
 export type AttemptQuestion = {
@@ -77,6 +80,8 @@ export type AttemptView = {
   deadline: string
   serverNow: string
   wrongAnswerPenaltyPercent: number
+  /** Set when a wrong answer costs a fixed number of points instead (then the percentage is 0). */
+  wrongAnswerPenaltyPoints: number | null
   maxScore: number
   questions: AttemptQuestion[]
   result: AttemptResult | null
@@ -89,13 +94,19 @@ export type AttemptResult = {
   status: 'Submitted' | 'Expired'
   startedAt: string
   finalizedAt: string
-  score: number
-  maxScore: number
-  percentage: number
-  correctCount: number
-  wrongCount: number
-  unansweredCount: number
+  /** False when the teacher hides scores: every graded value below is then null (the server doesn't send it). */
+  scoreVisible: boolean
+  score: number | null
+  maxScore: number | null
+  percentage: number | null
+  correctCount: number | null
+  wrongCount: number | null
+  unansweredCount: number | null
+  /** When the teacher corrected the closed quiz and this result changed. */
+  regradedAt: string | null
   wrongAnswerPenaltyPercent: number
+  /** Set when a wrong answer costs a fixed number of points instead (then the percentage is 0). */
+  wrongAnswerPenaltyPoints: number | null
   /** = quiz closesAt */
   reviewAvailableAt: string
   /** null until the quiz has closed (stretch S2; always null if not built) */
@@ -127,6 +138,8 @@ export type TeacherQuizSummary = {
   closesAt: string
   durationMinutes: number
   wrongAnswerPenaltyPercent: number
+  /** Set when a wrong answer costs a fixed number of points instead (then the percentage is 0). */
+  wrongAnswerPenaltyPoints: number | null
   isPublished: boolean
   state: TeacherQuizState
   isLocked: boolean
@@ -146,8 +159,11 @@ export type QuizUpsert = {
   closesAt: string
   durationMinutes: number
   wrongAnswerPenaltyPercent: number
-  /** order = array order */
-  questions: { text: string; points: number; options: { text: string; isCorrect: boolean }[] }[]
+  /** Set when a wrong answer costs a fixed number of points instead (then the percentage is 0). */
+  wrongAnswerPenaltyPoints: number | null
+  scoresVisibleToStudents: boolean
+  /** order = array order; `id` keeps an existing question/option (and students' answers to it) when editing */
+  questions: { id: string | null; text: string; points: number; options: { id: string | null; text: string; isCorrect: boolean }[] }[]
 }
 
 export type QuizEditorView = Omit<QuizUpsert, 'questions' | 'classRoomIds'> & {
@@ -155,7 +171,10 @@ export type QuizEditorView = Omit<QuizUpsert, 'questions' | 'classRoomIds'> & {
   classRooms: ClassRoomRef[]
   isPublished: boolean
   state: TeacherQuizState
+  /** Students have attempts and the quiz is still open: nothing can change. */
   isLocked: boolean
+  /** With `!isLocked`: closed with attempts. Content and marking can change (saving regrades); schedule and classes can't. */
+  hasAttempts: boolean
   maxScore: number
   questions: {
     id: string
@@ -174,8 +193,11 @@ export type QuizResults = {
     closesAt: string
     durationMinutes: number
     wrongAnswerPenaltyPercent: number
+    /** Set when a wrong answer costs a fixed number of points instead (then the percentage is 0). */
+    wrongAnswerPenaltyPoints: number | null
     maxScore: number
     state: TeacherQuizState
+    scoresVisibleToStudents: boolean
   }
   summary: {
     assignedCount: number
@@ -199,5 +221,46 @@ export type QuizResults = {
     score: number | null
     maxScore: number
     percentage: number | null
+    regradedAt: string | null
+  }[]
+}
+
+export type AnswerOutcome = 'Correct' | 'Wrong' | 'Unanswered'
+
+/** One student's answers for the quiz's teacher, scored by the quiz as it is now (`score` is the stored result). */
+export type TeacherAttemptDetail = {
+  attemptId: string
+  quizId: string
+  quizTitle: string
+  student: { id: string; fullName: string; username: string; classRoom: string | null }
+  status: AttemptStatus
+  startedAt: string
+  deadline: string
+  finalizedAt: string | null
+  regradedAt: string | null
+  score: number | null
+  maxScore: number
+  percentage: number | null
+  correctCount: number
+  wrongCount: number
+  unansweredCount: number
+  /** The questions' contributions added up, before the total is kept at 0 or more. */
+  questionsTotal: number
+  wrongAnswerPenaltyPercent: number
+  wrongAnswerPenaltyPoints: number | null
+  scoresVisibleToStudents: boolean
+  questions: {
+    questionId: string
+    order: number
+    text: string
+    points: number
+    options: { id: string; order: number; text: string; isCorrect: boolean }[]
+    selectedOptionId: string | null
+    /** The chosen option's text when the teacher removed it later (the answer then counts as unanswered). */
+    removedSelectionText: string | null
+    outcome: AnswerOutcome
+    earned: number
+    deduction: number
+    contribution: number
   }[]
 }

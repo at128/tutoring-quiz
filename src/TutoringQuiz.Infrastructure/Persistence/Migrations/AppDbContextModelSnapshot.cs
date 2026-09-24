@@ -66,6 +66,9 @@ namespace TutoringQuiz.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("QuizId")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("RegradedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<decimal?>("Score")
                         .HasColumnType("TEXT");
 
@@ -135,6 +138,9 @@ namespace TutoringQuiz.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("QuestionId")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("RemovedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -159,6 +165,9 @@ namespace TutoringQuiz.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<Guid>("QuizId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RemovedAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Text")
@@ -197,6 +206,9 @@ namespace TutoringQuiz.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("OpensAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("ScoresVisibleToStudents")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("TeacherId")
                         .HasColumnType("TEXT");
 
@@ -210,6 +222,9 @@ namespace TutoringQuiz.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("WrongAnswerPenaltyPercent")
                         .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("WrongAnswerPenaltyPoints")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 

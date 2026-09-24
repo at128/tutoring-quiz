@@ -14,6 +14,7 @@ const row = (fullName: string, classRoom: string, status: ResultRow['status'], s
   score,
   maxScore: 10,
   percentage: score === null ? null : score * 10,
+  regradedAt: null,
 })
 
 const rows = [

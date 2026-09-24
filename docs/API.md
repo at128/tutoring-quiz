@@ -28,7 +28,7 @@ Owner: Claude Code, with human approval required for contract changes. The front
 | `attempt.not_in_progress` | 409 | answer save on a finalized attempt |
 | `attempt.not_finalized` | 409 | result requested while still in progress |
 | `answer.invalid_option` | 400 | question not in this quiz / option not in this question |
-| `quiz.locked` | 409 | content edit on a quiz that has attempts |
+| `quiz.locked` | 409 | an edit while the quiz is open and has attempts; or, after it closes, a change to its dates, time limit or classes |
 | `quiz.has_attempts` | 409 | unpublish/delete a quiz that has attempts |
 | `quiz.invalid_for_publish` | 400 | publish without questions / close time in the past (`errors` present) |
 
@@ -122,17 +122,23 @@ Ordered: Open, Scheduled, Draft, Closed; then by opensAt.
 
 ### `POST /api/teacher/quizzes` body `QuizUpsert` → `201 { "id": "…" }` (+ `Location`). Created as draft (unpublished).
 ### `GET /api/teacher/quizzes/{id}` → `200 QuizEditorView`
-### `PUT /api/teacher/quizzes/{id}` body `QuizUpsert` → `200 QuizEditorView`. Replaces all questions/options. 409 `quiz.locked` if the quiz has attempts.
+### `PUT /api/teacher/quizzes/{id}` body `QuizUpsert` → `200 QuizEditorView`. Questions/options sent with their `id` keep their identity; others are new; missing ones are removed (only marked removed when the quiz has attempts). With attempts: 409 `quiz.locked` while open (`now <= closesAt`); after the close the save regrades every attempt in the same transaction, and dates, duration and classes must be unchanged.
 ```ts
 type QuizUpsert = {
   title: string; description: string | null; classRoomIds: string[];
   opensAt: string; closesAt: string;              // UTC ISO; the browser converts from local input
   durationMinutes: number; wrongAnswerPenaltyPercent: number;
-  questions: { text: string; points: number; options: { text: string; isCorrect: boolean }[] }[];  // order = array order
+  wrongAnswerPenaltyPoints?: number | null;       // a fixed mark per wrong answer (0 < f ≤ 100, 2 decimals); percent must then be 0
+  scoresVisibleToStudents?: boolean;              // default true
+  questions: { id?: string | null; text: string; points: number;
+               options: { id?: string | null; text: string; isCorrect: boolean }[] }[];  // order = array order
 };
 type QuizEditorView = Omit<QuizUpsert, "questions" | "classRoomIds"> & {
   id: string; classRooms: { id: string; name: string }[];
-  isPublished: boolean; state: TeacherQuizState; isLocked: boolean; maxScore: number;
+  isPublished: boolean; state: TeacherQuizState;
+  isLocked: boolean;      // attempts exist and the quiz is still open: nothing can change
+  hasAttempts: boolean;   // with !isLocked: closed with attempts, content editable, saving regrades
+  maxScore: number;
   questions: { id: string; order: number; text: string; points: number;
                options: { id: string; order: number; text: string; isCorrect: boolean }[] }[];
 };
@@ -141,20 +147,42 @@ type QuizEditorView = Omit<QuizUpsert, "questions" | "classRoomIds"> & {
 ### `POST /api/teacher/quizzes/{id}/publish` → `200 QuizEditorView` | 400 `quiz.invalid_for_publish`
 ### `POST /api/teacher/quizzes/{id}/unpublish` → `200 QuizEditorView` | 409 `quiz.has_attempts`
 ### `DELETE /api/teacher/quizzes/{id}` → `204` | 409 `quiz.has_attempts`
+### `PUT /api/teacher/quizzes/{id}/score-visibility` body `{ "scoresVisibleToStudents": boolean }` → `200 QuizEditorView`
+Allowed in every state, even while students take the quiz; it changes what student requests return, never a score. Missing field → 400 `validation_failed`.
+
+### `GET /api/teacher/quizzes/{quizId}/attempts/{attemptId}` → `200 TeacherAttemptDetail`
+One student's answers for the quiz's teacher; someone else's quiz, or an attempt of another quiz → 404. Finalizes an expired attempt first.
+```ts
+type TeacherAttemptDetail = {
+  attemptId: string; quizId: string; quizTitle: string;
+  student: { id: string; fullName: string; username: string; classRoom: string | null };
+  status: AttemptStatus; startedAt: string; deadline: string; finalizedAt: string | null; regradedAt: string | null;
+  score: number | null; maxScore: number; percentage: number | null;   // the stored result (null while in progress)
+  correctCount: number; wrongCount: number; unansweredCount: number;
+  questionsTotal: number;                                               // sum of contributions; score = max(0, this)
+  wrongAnswerPenaltyPercent: number; wrongAnswerPenaltyPoints: number | null; scoresVisibleToStudents: boolean;
+  questions: { questionId: string; order: number; text: string; points: number;
+               options: { id: string; order: number; text: string; isCorrect: boolean }[];
+               selectedOptionId: string | null; removedSelectionText: string | null;
+               outcome: "Correct" | "Wrong" | "Unanswered"; earned: number; deduction: number; contribution: number }[];
+};
+```
 
 ### `GET /api/teacher/quizzes/{id}/results`
 Finalizes expired attempts first.
 ```ts
 type QuizResults = {
   quiz: { id: string; title: string; opensAt: string; closesAt: string; durationMinutes: number;
-          wrongAnswerPenaltyPercent: number; maxScore: number; state: TeacherQuizState };
+          wrongAnswerPenaltyPercent: number; wrongAnswerPenaltyPoints: number | null; maxScore: number;
+          state: TeacherQuizState; scoresVisibleToStudents: boolean };
   summary: { assignedCount: number; startedCount: number; finalizedCount: number;
              averageScore: number | null; highestScore: number | null; lowestScore: number | null;
              averagePercentage: number | null };
   rows: { studentId: string; fullName: string; username: string; classRoom: string;
           status: ResultRowStatus; attemptId: string | null;
           startedAt: string | null; finalizedAt: string | null;
-          score: number | null; maxScore: number; percentage: number | null }[];   // ordered by classRoom, then fullName
+          score: number | null; maxScore: number; percentage: number | null;
+          regradedAt: string | null }[];   // ordered by classRoom, then fullName
 };
 ```
 

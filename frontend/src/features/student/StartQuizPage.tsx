@@ -154,15 +154,19 @@ function StateBox({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: num
             <Icon name="check" strokeWidth={2} />
             <span className="text-[17px] font-bold">{t.start.alreadyTaken}</span>
           </div>
-          <p className="text-[15px] text-ink-2">
-            {t.start.yourScoreColon}{' '}
-            <strong className={score < 0 ? 'text-red' : 'text-ink'}>
-              <Num>
-                {formatScore(score)} / {attempt.maxScore}
-              </Num>
-            </strong>{' '}
-            · <Num>{formatPercent(displayPercentage(score, attempt.maxScore))}</Num>
-          </p>
+          {attempt.scoreVisible ? (
+            <p className="text-[15px] text-ink-2">
+              {t.start.yourScoreColon}{' '}
+              <strong className="text-ink">
+                <Num>
+                  {formatScore(score)} / {attempt.maxScore}
+                </Num>
+              </strong>{' '}
+              · <Num>{formatPercent(displayPercentage(score, attempt.maxScore))}</Num>
+            </p>
+          ) : (
+            <p className="text-[15px] text-ink-2">{t.start.scoreHidden}</p>
+          )}
           <p className="text-meta text-muted">{t.start.onceOnly}</p>
         </div>
       )
@@ -195,6 +199,7 @@ function DetailsSheet({ quiz, nowMs }: { quiz: StudentQuizCard; nowMs: number })
   const { t, lang } = useLanguage()
   const user = useSignedInUser()
   const example = (2 * quiz.wrongAnswerPenaltyPercent) / 100
+  const fixedPoints = quiz.wrongAnswerPenaltyPoints
 
   return (
     <section className="flex flex-col gap-4 rounded-sheet border border-rule bg-paper p-[18px]">
@@ -233,7 +238,11 @@ function DetailsSheet({ quiz, nowMs }: { quiz: StudentQuizCard; nowMs: number })
         <Fact label={t.start.opens}>{formatDayTime(quiz.opensAt, nowMs, lang)}</Fact>
         <Fact label={t.start.closes}>{formatDayTime(quiz.closesAt, nowMs, lang)}</Fact>
         <Fact label={t.start.negativeMarking}>
-          {quiz.wrongAnswerPenaltyPercent > 0 ? (
+          {fixedPoints != null ? (
+            <>
+              <strong className="font-semibold">{t.start.penaltyYesPoints(fixedPoints)}</strong> {t.start.penaltyDetailPoints}
+            </>
+          ) : quiz.wrongAnswerPenaltyPercent > 0 ? (
             <>
               <strong className="font-semibold">{t.start.penaltyYes(quiz.wrongAnswerPenaltyPercent)}</strong>{' '}
               {t.start.penaltyDetail(quiz.wrongAnswerPenaltyPercent, formatScore(-example))}

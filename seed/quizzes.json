@@ -191,6 +191,7 @@
       "closesInHours": 216,
       "durationMinutes": 25,
       "wrongAnswerPenaltyPercent": 0,
+      "wrongAnswerPenaltyPoints": 0.5,
       "isPublished": true,
       "demoAttempts": null,
       "questions": [
