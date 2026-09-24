@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# Keeps the live demo (https://quiz.just-atta.site) on the newest commit of main whose CI passed.
+# The server pulls: GitHub holds no key, address or secret for it. Runs as root (systemd timer or sudo).
+#
+#   tq-deploy poll              (timer, every minute) deploy main's head once its CI run has succeeded
+#   tq-deploy deploy <sha>      deploy a commit of main by hand (e.g. to retry one), CI not checked
+#   tq-deploy reset-demo        wipe the demo database and reseed it, keeping the live commit
+#   tq-deploy status            print the live commit
+set -Eeuo pipefail
+umask 022
+
+readonly ROOT=/opt/tutoring-quiz
+readonly SRC=$ROOT/src
+readonly STATE=$ROOT/state
+readonly PROJECT=tutoring-quiz
+readonly IMAGE=tutoring-quiz
+readonly HOST=quiz.just-atta.site
+readonly RUNS_API=https://api.github.com/repos/at128/tutoring-quiz/actions/runs
+readonly CI_WORKFLOW=CI # `name:` of .github/workflows/ci.yml
+
+log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$STATE/deploy.log"; }
+die() { log "FAILED: $*"; exit 1; }
+trap 'log "FAILED: line $LINENO: $BASH_COMMAND"' ERR
+
+# compose <image tag> <args...>, with the compose files of the commit currently checked out.
+compose() {
+  TQ_IMAGE_TAG=$1 docker compose --progress plain -p "$PROJECT" --project-directory "$SRC" \
+    -f "$SRC/docker-compose.yml" -f "$SRC/deploy/compose.server.yml" "${@:2}"
+}
+
+# Asks through Traefik on this host, so the route is checked too (-k: a new certificate may still be pending).
+healthy() {
+  local attempt
+  for attempt in $(seq 1 60); do
+    curl -fsSk --max-time 3 --resolve "$HOST:443:127.0.0.1" "https://$HOST/api/health" >/dev/null 2>&1 && return 0
+    sleep 2
+  done
+  return 1
+}
+
+live_commit() { cat "$STATE/current" 2>/dev/null || true; }
+last_attempt() { cat "$STATE/last-attempt" 2>/dev/null || true; }
+
+# Starts an already built commit with that commit's own compose files.
+start() {
+  git -C "$SRC" checkout --quiet --detach "$1"
+  compose "$1" up -d --no-build --remove-orphans
+}
+
+# Removes every tutoring-quiz image except the given tags.
+keep_images() {
+  local tag
+  docker image ls "$IMAGE" --format '{{.Tag}}' | while read -r tag; do
+    case " $* " in *" $tag "*) ;; *) docker image rm "$IMAGE:$tag" >/dev/null 2>&1 || true ;; esac
+  done
+}
+
+deploy() {
+  local sha=$1 previous
+  previous=$(live_commit)
+  git -C "$SRC" fetch --quiet origin main
+  git -C "$SRC" merge-base --is-ancestor "$sha" origin/main 2>/dev/null || die "$sha is not a commit on main"
+
+  # Recorded first, so a commit that fails to build or start is not retried every minute.
+  echo "$sha" >"$STATE/last-attempt"
+  log "deploying $sha (live: ${previous:-nothing})"
+  git -C "$SRC" checkout --quiet --detach "$sha"
+  compose "$sha" build --pull
+  start "$sha"
+
+  if healthy; then
+    echo "$sha" >"$STATE/current"
+    keep_images "$sha" "$previous"
+    log "live: $sha"
+    return 0
+  fi
+
+  log "unhealthy: $sha (container log below)"
+  compose "$sha" logs --no-color --tail 100 2>&1 | tee -a "$STATE/deploy.log" || true
+  if [[ -n $previous && $previous != "$sha" ]]; then
+    start "$previous"
+    if healthy; then log "rolled back to $previous"; else log "rollback to $previous is unhealthy too"; fi
+  fi
+  exit 1
+}
+
+# Verdict of the CI workflow for a commit pushed to main: success, failure or pending.
+# Unreachable or rate-limited GitHub counts as pending, so the next tick simply asks again.
+ci_verdict() {
+  local runs
+  runs=$(curl -fsS --max-time 15 -H 'Accept: application/vnd.github+json' \
+    "$RUNS_API?head_sha=$1&event=push&branch=main&per_page=20") || { echo pending; return; }
+  jq -r --arg name "$CI_WORKFLOW" '
+    [.workflow_runs[] | select(.name == $name)]
+    | if length == 0 then "pending"
+      else max_by(.created_at)
+        | if .status != "completed" then "pending"
+          elif .conclusion == "success" then "success"
+          else "failure" end
+      end' <<<"$runs" 2>/dev/null || echo pending
+}
+
+poll() {
+  local head verdict
+  # git ls-remote uses no API quota; the API is asked only while a new head waits for its CI verdict.
+  head=$(git -C "$SRC" ls-remote --quiet origin refs/heads/main 2>/dev/null | cut -f1) || true
+  [[ $head =~ ^[0-9a-f]{40}$ ]] || { echo "couldn't read main from GitHub; next tick retries"; return 0; }
+  [[ $head == "$(live_commit)" || $head == "$(last_attempt)" ]] && return 0
+
+  verdict=$(ci_verdict "$head")
+  case $verdict in
+    success) deploy "$head" ;;
+    failure)
+      echo "$head" >"$STATE/last-attempt"
+      log "not deploying $head: its CI run failed"
+      ;;
+    *) echo "waiting for CI on $head" ;;
+  esac
+}
+
+reset_demo() {
+  local sha
+  sha=$(live_commit)
+  [[ -n $sha ]] || die "nothing is deployed yet"
+  log "resetting demo data (live: $sha)"
+  git -C "$SRC" checkout --quiet --detach "$sha"
+  compose "$sha" down --volumes # this project's container and database volume only
+  start "$sha"
+  healthy || die "unhealthy after the reset"
+  log "demo data reset"
+}
+
+main() {
+  [[ $EUID -eq 0 ]] || { echo "run as root" >&2; exit 1; }
+  mkdir -p "$STATE"
+  exec 9>"$STATE/deploy.lock"
+  case "${1:-}" in
+    poll)
+      [[ $# -eq 1 ]] || die "usage: poll"
+      flock -n 9 || exit 0 # a deploy or reset is running; the next tick looks again
+      poll
+      ;;
+    deploy)
+      [[ $# -eq 2 && $2 =~ ^[0-9a-f]{40}$ ]] || die "usage: deploy <40-hex sha>"
+      flock -w 900 9 || die "another deploy is still running"
+      deploy "$2"
+      ;;
+    reset-demo)
+      [[ $# -eq 1 ]] || die "usage: reset-demo"
+      flock -w 900 9 || die "another deploy is still running"
+      reset_demo
+      ;;
+    status) echo "live: $(live_commit)  last attempt: $(last_attempt)" ;;
+    *) die "usage: tq-deploy poll | deploy <sha> | reset-demo | status" ;;
+  esac
+}
+
+main "$@"

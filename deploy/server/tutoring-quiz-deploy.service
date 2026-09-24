@@ -1,0 +1,12 @@
+[Unit]
+Description=Deploy the tutoring-quiz live demo when main has a new green commit
+Documentation=https://github.com/at128/tutoring-quiz/blob/main/deploy/README.md
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/tutoring-quiz/bin/tq-deploy poll
+# A first build on this arm64 host takes a few minutes.
+TimeoutStartSec=30min
