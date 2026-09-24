@@ -25,6 +25,8 @@ export function useAutosave({ attemptId, answers, dispatch, active, onAttemptClo
   const waiting = useRef(new Map<string, number>())
   const latest = useRef({ active, onAttemptClosed })
   const [wake, setWake] = useState(0)
+  // Mirrors inFlight for rendering (refs are not read during render): submit waits for these writes too.
+  const [sending, setSending] = useState<ReadonlySet<string>>(() => new Set())
 
   useEffect(() => {
     latest.current = { active, onAttemptClosed }
@@ -38,6 +40,7 @@ export function useAutosave({ attemptId, answers, dispatch, active, onAttemptClo
   const send = useCallback(
     async (questionId: string, optionId: string | null) => {
       inFlight.current.add(questionId)
+      setSending(new Set(inFlight.current))
       try {
         const saved = await saveAnswer(attemptId, questionId, optionId)
         failures.current.delete(questionId)
@@ -66,6 +69,7 @@ export function useAutosave({ attemptId, answers, dispatch, active, onAttemptClo
         waiting.current.set(questionId, timer)
       } finally {
         inFlight.current.delete(questionId)
+        setSending(new Set(inFlight.current))
         setWake((n) => n + 1)
       }
     },
@@ -99,6 +103,6 @@ export function useAutosave({ attemptId, answers, dispatch, active, onAttemptClo
 
   // A choice can return to its last confirmed value while an older write is still in flight.
   // Submit must wait for that write to finish (and, if needed, for a compensating write).
-  const pendingCount = new Set([...pendingQuestionIds(answers), ...inFlight.current]).size
+  const pendingCount = new Set([...pendingQuestionIds(answers), ...sending]).size
   return { pendingCount, retryNow }
 }
