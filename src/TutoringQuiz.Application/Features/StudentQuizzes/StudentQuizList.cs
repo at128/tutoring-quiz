@@ -26,8 +26,10 @@ public sealed record StudentQuizCard(
     int QuestionCount,
     int MaxScore,
     int WrongAnswerPenaltyPercent,
+    decimal? WrongAnswerPenaltyPoints,
     StudentQuizStatus Status,
     int? EffectiveMinutesIfStartedNow,
     StudentAttemptSummary? Attempt);
 
-public sealed record StudentAttemptSummary(Guid Id, AttemptStatus Status, DateTime Deadline, decimal? Score, int MaxScore);
+/// <summary><see cref="Score"/> is null while the attempt runs, and whenever the teacher hides scores.</summary>
+public sealed record StudentAttemptSummary(Guid Id, AttemptStatus Status, DateTime Deadline, bool ScoreVisible, decimal? Score, int MaxScore);

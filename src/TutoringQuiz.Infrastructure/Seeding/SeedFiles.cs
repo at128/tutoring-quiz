@@ -20,7 +20,8 @@ internal sealed record QuizSeed(
     bool IsPublished,
     IReadOnlyList<QuestionSeed> Questions,
     string? Description = null,
-    DemoAttemptsSeed? DemoAttempts = null);
+    DemoAttemptsSeed? DemoAttempts = null,
+    decimal? WrongAnswerPenaltyPoints = null);
 
 internal sealed record QuestionSeed(string Text, int Points, IReadOnlyList<OptionSeed> Options);
 

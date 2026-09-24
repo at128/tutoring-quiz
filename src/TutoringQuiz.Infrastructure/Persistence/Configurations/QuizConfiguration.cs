@@ -16,6 +16,7 @@ internal sealed class QuizConfiguration : IEntityTypeConfiguration<Quiz>
         builder.Property(q => q.Title).HasMaxLength(QuizRules.TitleMaxLength).IsRequired();
         builder.Property(q => q.Description).HasMaxLength(QuizRules.DescriptionMaxLength);
         builder.Ignore(q => q.MaxScore);
+        builder.Ignore(q => q.WrongAnswerPenalty);
 
         builder.HasOne<User>()
             .WithMany()
@@ -60,6 +61,7 @@ internal sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
         builder.Property(q => q.Id).ValueGeneratedNever();
         builder.Property(q => q.Text).HasMaxLength(QuizRules.QuestionTextMaxLength).IsRequired();
         builder.Ignore(q => q.CorrectOptionId);
+        builder.Ignore(q => q.IsRemoved);
         builder.HasIndex(q => new { q.QuizId, q.Order });
 
         builder.HasMany(q => q.Options)
@@ -78,6 +80,7 @@ internal sealed class OptionConfiguration : IEntityTypeConfiguration<Option>
         builder.HasKey(o => o.Id);
         builder.Property(o => o.Id).ValueGeneratedNever();
         builder.Property(o => o.Text).HasMaxLength(QuizRules.OptionTextMaxLength).IsRequired();
+        builder.Ignore(o => o.IsRemoved);
         builder.HasIndex(o => new { o.QuestionId, o.Order });
     }
 }

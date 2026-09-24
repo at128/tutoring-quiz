@@ -36,7 +36,9 @@ public static class DependencyInjection
         services.AddScoped<PublishTeacherQuizHandler>();
         services.AddScoped<UnpublishTeacherQuizHandler>();
         services.AddScoped<DeleteTeacherQuizHandler>();
+        services.AddScoped<SetScoreVisibilityHandler>();
         services.AddScoped<GetQuizResultsHandler>();
+        services.AddScoped<GetTeacherAttemptHandler>();
 
         return services;
     }

@@ -12,7 +12,7 @@ public sealed record AttemptQuestionView(
 public sealed record AttemptView(
     Guid Id, Guid QuizId, string QuizTitle, AttemptStatus Status,
     DateTime StartedAt, DateTime Deadline, DateTime ServerNow,
-    int WrongAnswerPenaltyPercent, int MaxScore,
+    int WrongAnswerPenaltyPercent, decimal? WrongAnswerPenaltyPoints, int MaxScore,
     IReadOnlyList<AttemptQuestionView> Questions, AttemptResult? Result);
 
 public sealed record ReviewOption(Guid Id, string Text);
@@ -21,12 +21,16 @@ public sealed record ReviewItem(
     Guid QuestionId, string Text, int Points, IReadOnlyList<ReviewOption> Options,
     Guid? SelectedOptionId, Guid CorrectOptionId, decimal Earned);
 
+/// <summary>
+/// A student's finished attempt. When the teacher hides scores (<see cref="ScoreVisible"/> false) every graded value is
+/// null: the score never leaves the server, it isn't merely hidden by the page. Read live from the quiz on each request.
+/// </summary>
 public sealed record AttemptResult(
     Guid AttemptId, Guid QuizId, string QuizTitle, AttemptStatus Status,
-    DateTime StartedAt, DateTime FinalizedAt,
-    decimal Score, int MaxScore, decimal Percentage,
-    int CorrectCount, int WrongCount, int UnansweredCount,
-    int WrongAnswerPenaltyPercent, DateTime ReviewAvailableAt,
+    DateTime StartedAt, DateTime FinalizedAt, bool ScoreVisible,
+    decimal? Score, int? MaxScore, decimal? Percentage,
+    int? CorrectCount, int? WrongCount, int? UnansweredCount, DateTime? RegradedAt,
+    int WrongAnswerPenaltyPercent, decimal? WrongAnswerPenaltyPoints, DateTime ReviewAvailableAt,
     IReadOnlyList<ReviewItem>? Review);
 
 /// <summary>Pure API projections. The in-progress view deliberately has no correct-answer fields.</summary>
@@ -38,7 +42,7 @@ internal static class AttemptViews
             return new AttemptView(
                 attempt.Id, quiz.Id, quiz.Title, attempt.Status,
                 attempt.StartedAtUtc, attempt.DeadlineUtc, nowUtc,
-                quiz.WrongAnswerPenaltyPercent, attempt.MaxScore,
+                quiz.WrongAnswerPenaltyPercent, quiz.WrongAnswerPenaltyPoints, attempt.MaxScore,
                 [], ToResult(attempt, quiz));
 
         var selectedByQuestion = attempt.Answers.ToDictionary(a => a.QuestionId, a => a.SelectedOptionId);
@@ -54,7 +58,7 @@ internal static class AttemptViews
         return new AttemptView(
             attempt.Id, quiz.Id, quiz.Title, attempt.Status,
             attempt.StartedAtUtc, attempt.DeadlineUtc, nowUtc,
-            quiz.WrongAnswerPenaltyPercent, attempt.MaxScore,
+            quiz.WrongAnswerPenaltyPercent, quiz.WrongAnswerPenaltyPoints, attempt.MaxScore,
             questions, null);
     }
 
@@ -63,17 +67,23 @@ internal static class AttemptViews
         if (!attempt.IsFinalized)
             throw new InvalidOperationException("An in-progress attempt has no result.");
 
+        var finalizedAt = attempt.FinalizedAtUtc ?? throw Missing("finalization time");
+        if (!quiz.ScoresVisibleToStudents)
+            return new AttemptResult(
+                attempt.Id, quiz.Id, quiz.Title, attempt.Status, attempt.StartedAtUtc, finalizedAt, ScoreVisible: false,
+                null, null, null, null, null, null, null,
+                quiz.WrongAnswerPenaltyPercent, quiz.WrongAnswerPenaltyPoints, quiz.ClosesAtUtc, null);
+
         return new AttemptResult(
-            attempt.Id, quiz.Id, quiz.Title, attempt.Status,
-            attempt.StartedAtUtc,
-            attempt.FinalizedAtUtc ?? throw Missing("finalization time"),
+            attempt.Id, quiz.Id, quiz.Title, attempt.Status, attempt.StartedAtUtc, finalizedAt, ScoreVisible: true,
             attempt.Score ?? throw Missing("score"),
             attempt.MaxScore,
             attempt.Percentage ?? throw Missing("percentage"),
             attempt.CorrectCount ?? throw Missing("correct count"),
             attempt.WrongCount ?? throw Missing("wrong count"),
             attempt.UnansweredCount ?? throw Missing("unanswered count"),
-            quiz.WrongAnswerPenaltyPercent, quiz.ClosesAtUtc, null);
+            attempt.RegradedAtUtc,
+            quiz.WrongAnswerPenaltyPercent, quiz.WrongAnswerPenaltyPoints, quiz.ClosesAtUtc, null);
     }
 
     private static InvalidOperationException Missing(string field) =>

@@ -15,6 +15,6 @@ public sealed class UnpublishTeacherQuizHandler(IAppDbContext db, TeacherQuizAcc
         quiz.Unpublish(hasAttempts, now);
         await db.SaveChangesAsync(ct);
         var names = await access.ClassNamesAsync(quiz.ClassRooms.Select(c => c.ClassRoomId), ct);
-        return TeacherQuizViews.Editor(quiz, names, isLocked: false, now);
+        return TeacherQuizViews.Editor(quiz, names, hasAttempts: false, now);
     }
 }

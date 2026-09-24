@@ -63,12 +63,14 @@ public static class StudentQuizPolicy
             quiz.Questions.Count,
             quiz.MaxScore,
             quiz.WrongAnswerPenaltyPercent,
+            quiz.WrongAnswerPenaltyPoints,
             status,
             status == StudentQuizStatus.Available
                 ? AttemptTiming.EffectiveMinutesIfStartedNow(nowUtc, quiz.DurationMinutes, quiz.ClosesAtUtc)
                 : null,
             attempt is null
                 ? null
-                : new StudentAttemptSummary(attempt.Id, attempt.Status, attempt.DeadlineUtc, attempt.Score, attempt.MaxScore));
+                : new StudentAttemptSummary(attempt.Id, attempt.Status, attempt.DeadlineUtc, quiz.ScoresVisibleToStudents,
+                    quiz.ScoresVisibleToStudents ? attempt.Score : null, attempt.MaxScore));
     }
 }

@@ -116,7 +116,8 @@ internal static class SeedGraphBuilder
             nowUtc.AddHours(seed.OpensInHours),
             nowUtc.AddHours(seed.ClosesInHours),
             seed.DurationMinutes,
-            seed.WrongAnswerPenaltyPercent);
+            seed.WrongAnswerPenaltyPercent,
+            seed.WrongAnswerPenaltyPoints);
         var questions = seed.Questions
             .Select(q => new QuestionDraft(q.Text, q.Points, q.Options.Select(o => new OptionDraft(o.Text, o.IsCorrect)).ToList()))
             .ToList();
