@@ -70,7 +70,8 @@ cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm ru
   - ownership and roles, and quiz locking;
   - validation limits.
 - **Frontend:** the unit tests cover the answer/autosave state, the timer phases, the server-clock offset, the quiz editor's validation (including impossible local times) and the results sorting.
-- **CI:** GitHub Actions runs the backend, frontend and Docker-build jobs on every push and pull request.
+- **Browser:** Playwright tests in `frontend/e2e` run real journeys (Arabic phone, English desktop, teacher to student) against the Docker container.
+- **CI:** GitHub Actions runs four jobs on every push and pull request: `backend`, `frontend`, `docker` (image build) and `e2e` (the browser tests against the running container).
 
 ## Project structure
 ```

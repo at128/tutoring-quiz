@@ -9,7 +9,7 @@ Test the rules that would hurt Nour if they broke — one attempt per student, t
 - Demo seeding is disabled in `Testing`. Each test builds its own small data set through a `TestData` builder (one class, one teacher, a few students, a quiz with 3–4 questions with known points and penalty) written directly through the DbContext.
 - Helper `LoginAsync(client, username, password)`; clients keep cookies. For "two tabs" scenarios, log two clients in as the same student.
 - xUnit asserts only (no FluentAssertions).
-- Frontend: `npm run build` (type-check) and `npm run lint` are the gate. A couple of Vitest unit tests for `lib/time.ts` (countdown with server offset) are welcome if cheap, not required.
+- Frontend: `npm run lint`, `npm run typecheck`, the Vitest unit tests (answers/autosave, timer, server clock, editor validation, results sorting, the Arabic interface and its dictionaries) and `npm run build` are the gate. Browser journeys are Playwright tests (below), run in CI.
 
 ## Required tests
 ### Domain (`TutoringQuiz.Domain.Tests`) — pure, fast

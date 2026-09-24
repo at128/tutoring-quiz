@@ -55,3 +55,24 @@ Checked:
 - **Login-limit branch:** clean export `dotnet test -c Release` → 20 + 54 passed; CI green on PRs #8 and #9.
 Unsure about / assumptions: the pull deploy uses GitHub's unauthenticated API, which allows 60 requests/hour per IP. It's asked only while a new head waits for CI, and a failed call counts as "pending".
 Human changed or rejected: no SSH or server access on GitHub (pull deploy instead); login limit per IP + username approved; browser E2E tests kept out of scope.
+
+### Arabic interface (PR #12) — 2026-09-24 late morning
+Asked to: make the whole site work in Arabic, not only the questions, with no left-to-right glitches, and test every edge case, especially Arabic.
+Did: a small i18n layer (`src/i18n`: `en.ts` is the source, `ar.ts: Messages` so TypeScript enforces key parity), device-language detection with a remembered «العربية / English» switch, right-to-left layout with mirrored directional icons, Arabic plurals (`Intl.PluralRules`), fixed Arabic day/month names with Western digits, and Unicode isolation for signed numbers and percentages. Fixed M4-02 (the editor checks against the time of the last save) and M4-03 (a failed class list offers Try again).
+Checked: Vitest 132/132 (dictionary parity, no Latin in Arabic strings, a scan for hard-coded copy, Arabic dates/plurals/editor/results); typecheck; oxlint 0 warnings; build. Playwright tour of 15 screens at 360 px and 1280 px, locally and on the live demo: `lang=ar dir=rtl`, no horizontal scroll, no page errors.
+Unsure about / assumptions: native date pickers follow the device's own digits.
+Human changed or rejected: Atta chose device language + switch, Western digits, the month names يناير/فبراير, and unit tests + browser E2E in CI.
+
+### M4 fixes and browser E2E in CI (PR #13) — 2026-09-24 midday
+Asked to: take over Codex's open items after Codex reached its usage limit, and make sure everything works.
+Did: committed Codex's Playwright harness, CI job and Arabic-content HTTP tests (credited to Codex in the commit). Fixed M4-01 (a same-origin guard for unsafe `/api` requests), M4-04 (the teacher list counts an attempt past its deadline as finalized) and the blank-text rule on the server (`VisibleText`, the editor's exact character classes). Added browser tests for M4-02/M4-03 and blank Arabic text. Found and fixed Arabic-Indic digits in number fields on Windows set to an Arabic region. Added daily and pre-deploy database backups with a restore command to the live demo.
+Checked: `dotnet test` 47 + 95; Vitest 135; Playwright 7/7 against a fresh container; CI green on all four jobs; the backup installed and run on the server (integrity check ok, row counts matched).
+Unsure about / assumptions: `restore` was not run against the live data (the tool denied overwriting it); it is tested only by reading the script.
+Human changed or rejected: Atta accepted all four M4 findings and the blank-text rule, and asked for backups on a volume.
+
+### Score floor, run scripts, fixes (PR #14) — 2026-09-24 early afternoon
+Asked to: no score below zero; an easy way to run the project anywhere.
+Did: the total is floored at 0 in `QuizScoring`, with a data migration for stored negative totals (tested by migrating down and up); `run.sh` / `run.cmd` (Docker checks, free port, health wait, phone address, `--reset`, `--stop`); fixed a phone header where a long name covered the language button, and titles in the other direction floating inside a wide box.
+Checked: `dotnet test` 48 + 96; Vitest 135; `run.cmd` start/stop/reset/bad option on Windows and `run.sh` in Git Bash; ShellCheck clean; CI green.
+Unsure about / assumptions: `run.sh` was not run on macOS or Linux (only Git Bash); it avoids bash 4 features.
+Human changed or rejected: Atta reversed the earlier "negative totals are allowed" decision.

@@ -1,6 +1,6 @@
 # Decisions
 
-Nour wasn't available for questions, so every gap in the brief was decided here. Each entry says what I chose, why, and what I'd reconsider. Sections marked *(fill at the end)* are completed before submission.
+Nour wasn't available for questions, so every gap in the brief was decided here. Each entry says what I chose, why, and what I'd reconsider.
 
 ## 1. Architecture
 
@@ -55,7 +55,7 @@ Nour wasn't available for questions, so every gap in the brief was decided here.
   - the teacher's list refetches at the next opening or closing.
   The server still decides whether a start is allowed. In the last minute, the warning says "less than 1 minute", not "0 minutes".
 - **The editor never shifts a time silently.** Impossible dates (30 Feb) and times skipped by a daylight-saving jump are rejected. Saving a quiz keeps its stored times to the second until the teacher changes them.
-- **A live demo that updates itself**: https://quiz.just-atta.site. The server pulls each commit of `main` whose CI passed, builds it and swaps it in, rolling back if the health check fails. It publishes no new port, and nothing about the server (keys, addresses, secrets) is stored on GitHub. See `deploy/README.md`. This is reviewer convenience; `docker compose up --build` stays the way to run the project.
+- **A live demo that updates itself**: https://quiz.just-atta.site. The server pulls each commit of `main` whose CI passed, builds it and swaps it in, rolling back if the health check fails. It publishes no new port, and nothing about the server (keys, addresses, secrets) is stored on GitHub. Its data lives on a Docker volume that survives redeploys and reboots, backed up every day and before every deploy (restore is one command). See `deploy/README.md`. This is reviewer convenience; `docker compose up --build` stays the way to run the project.
 - **Stretch S4, the Arabic interface, was built** at Atta's request (see §2, UI language). No other stretch items (S1–S3, S5) were built.
 - **Text that shows nothing counts as empty.** A title, question or option made only of spaces, tatweel (ـ), diacritics or invisible marks (ZWNJ, RLM…) is rejected with the same rule on the server and in the browser.
 
@@ -73,7 +73,7 @@ Self-registration and password reset · an admin UI · uploading spreadsheets th
 8. More browser journeys in CI: time-up on a real clock, offline autosave, a locked quiz.
 
 ## 6. Known limitations and unfinished work *(completed after the M4 review)*
-- **One SQLite file, one app instance.** Fine for one centre. Backups aren't automated (copy the volume). Several instances would need PostgreSQL (see §1).
+- **One SQLite file, one app instance.** Fine for one centre. The live demo backs up its database automatically: every day, and before every deploy, reset and restore (`deploy/README.md`). A local Docker run keeps its data in the `tq-data` volume; copy it yourself if it matters. Several instances would need PostgreSQL (see §1).
 - **Login limits count every attempt:** 10/min per IP + username and 100/min per IP. A very large centre behind one public IP could reach the per-IP cap; it's configurable (`RateLimiting:*`).
 - **The live demo is shared.** Anyone with the published demo passwords can use it. An admin resets it on the server (`tq-deploy reset-demo`). Its data lives on a Docker volume that survives redeploys, restarts and reboots, and it is backed up daily and before every deploy, on the same server (not off-site). Its quiz dates are relative to the last reset, so after about 14 days every demo quiz has closed until the next reset.
 - **Browser tests cover the main journeys, not every screen state.** CI runs Playwright against the real container: the Arabic phone and English desktop student journeys, an Arabic teacher-to-student journey, and blank Arabic text in the editor (`frontend/e2e`). Time-up, offline autosave and the locked quiz are covered by unit and integration tests and were checked by hand in a browser, not by CI.

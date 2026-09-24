@@ -1,5 +1,7 @@
 # PLAN — milestones
 
+> **This is the original plan (23 Sep), kept as history.** During the work Atta approved changes it lists as stretch or out of scope: the Arabic interface (S4), browser E2E tests in CI, a live demo with automatic backups, and further product changes on 24 Sep. `DECISIONS.md` and `docs/WORKFLOW.md` → "What actually happened" record them.
+
 Principle: **a complete, correct, explainable core flow beats feature count.** Priority when time is short: runs with one command → student flow → server-side rules → mobile UX → tests → teacher flow → docs → stretch.
 
 Roles: **CC** = Claude Code, primary implementer for backend + frontend on `main` · **CX** = Codex, independent reviewer at checkpoints and M4 · **H** = human.
