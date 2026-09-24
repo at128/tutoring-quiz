@@ -40,6 +40,10 @@ export function formatTime(iso: string): string {
 /** "Thu 8 Oct, 10:00" in the viewer's local time. */
 export const formatDateTime = (iso: string) => `${shortDay(new Date(iso))}, ${formatTime(iso)}`
 
+/** "Wed 23 Sep 2026, 10:00" (teacher details, where the year matters). */
+export const formatDateTimeWithYear = (iso: string) =>
+  `${shortDay(new Date(iso))} ${new Date(iso).getFullYear()}, ${formatTime(iso)}`
+
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
 
 /** "in 2 days", "in 3 hours", "in 12 minutes", "2 days ago" — relative to the server's now. */
