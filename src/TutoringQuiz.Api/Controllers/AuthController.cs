@@ -17,8 +17,15 @@ public sealed class AuthController : ControllerBase
     [AllowAnonymous]
     [EnableRateLimiting(LoginRateLimit.PolicyName)]
     public async Task<ActionResult<CurrentUserView>> Login(
-        [FromBody] LoginCommand command, [FromServices] LoginHandler handler, CancellationToken ct)
+        [FromBody] LoginCommand command, [FromServices] LoginHandler handler, [FromServices] LoginThrottle throttle,
+        CancellationToken ct)
     {
+        if (!throttle.TryEnter(HttpContext.Connection.RemoteIpAddress, command.Username, out var retryAfter))
+        {
+            await LoginRateLimit.WriteRejectionAsync(HttpContext, retryAfter);
+            return new EmptyResult();
+        }
+
         var user = await handler.HandleAsync(command, ct);
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, UserPrincipalFactory.Create(user));
         return Ok(user);

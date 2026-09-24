@@ -99,7 +99,9 @@ A single `IExceptionHandler` maps exceptions to ProblemDetails (`application/pro
 - Claims: `NameIdentifier` (user id), `Name` (username), `Role` (`Student`/`Teacher`), `full_name`, `classroom_id` (students).
 - Policies: `[Authorize(Roles = "Student")]` on `/api/student/*`, `[Authorize(Roles = "Teacher")]` on `/api/teacher/*`. Ownership (teacher owns quiz, student owns attempt, student's class is assigned) is checked in handlers and answered with **404** (don't leak existence).
 - Passwords hashed with `PasswordHasher<T>`. Usernames compared case-insensitively via `UsernameNormalized` (upper-invariant).
-- Login rate limit: built-in ASP.NET Core rate limiter, fixed window 10 requests/minute per IP on `POST /api/auth/login` → 429.
+- Login rate limits on `POST /api/auth/login`, both fixed one-minute windows → 429 `rate_limited` with `Retry-After`:
+  - **per client IP + username**: 10/min (`RateLimiting:LoginPermitsPerMinute`, `Api/RateLimiting/LoginThrottle.cs`, checked in the controller because the username is in the body). This stops password guessing on one account, and nobody on another network can lock a student out;
+  - **per client IP**: 100/min (`RateLimiting:LoginPermitsPerMinutePerIp`, built-in rate-limiter middleware) as a flood cap. A class of ~20 signing in together from the centre's Wi-Fi shares one IP and stays well under it. The earlier plain 10/min per IP would have blocked half the class; Atta approved the change on 24 Sep.
 
 ## JSON
 camelCase, enums as strings (`JsonStringEnumConverter`), dates ISO-8601 UTC with `Z`. Configure the encoder with `JavaScriptEncoder.Create(UnicodeRanges.All)` so Arabic is readable in responses rather than `\u0627…`.
