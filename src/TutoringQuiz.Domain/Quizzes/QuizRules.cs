@@ -4,7 +4,8 @@ namespace TutoringQuiz.Domain.Quizzes;
 
 /// <summary>
 /// Validation limits for quiz content (docs/DOMAIN.md → Validation limits). Error keys follow the API request
-/// field names so the same result can be returned to the editor as-is.
+/// field names so the same result can be returned to the editor as-is. Text that shows nothing (see
+/// <see cref="VisibleText"/>) counts as empty.
 /// </summary>
 public static class QuizRules
 {
@@ -36,7 +37,7 @@ public static class QuizRules
         }
 
         var title = details.Title?.Trim() ?? "";
-        if (title.Length is < TitleMinLength or > TitleMaxLength)
+        if (VisibleText.IsBlank(title) || title.Length is < TitleMinLength or > TitleMaxLength)
             Add("title", $"Title must be {TitleMinLength}–{TitleMaxLength} characters.");
         if ((details.Description?.Trim().Length ?? 0) > DescriptionMaxLength)
             Add("description", $"Description can be at most {DescriptionMaxLength} characters.");
@@ -63,7 +64,7 @@ public static class QuizRules
             }
 
             var text = question.Text?.Trim() ?? "";
-            if (text.Length is 0 or > QuestionTextMaxLength)
+            if (VisibleText.IsBlank(text) || text.Length > QuestionTextMaxLength)
                 Add($"{prefix}.text", $"Question text must be 1–{QuestionTextMaxLength} characters.");
             if (question.Points is < MinPoints or > MaxPoints)
                 Add($"{prefix}.points", $"Points must be a whole number from {MinPoints} to {MaxPoints}.");
@@ -77,7 +78,7 @@ public static class QuizRules
             for (var j = 0; j < options.Count; j++)
             {
                 var optionText = options[j]?.Text?.Trim() ?? "";
-                if (optionText.Length is 0 or > OptionTextMaxLength)
+                if (VisibleText.IsBlank(optionText) || optionText.Length > OptionTextMaxLength)
                     Add($"{prefix}.options[{j}].text", $"Option text must be 1–{OptionTextMaxLength} characters.");
             }
         }

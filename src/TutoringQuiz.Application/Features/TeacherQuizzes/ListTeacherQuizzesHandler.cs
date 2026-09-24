@@ -28,9 +28,15 @@ public sealed class ListTeacherQuizzesHandler(
             .ToDictionary(g => g.Key, g => g.Count());
         var attemptStates = await db.QuizAttempts.AsNoTracking()
             .Where(a => quizIds.Contains(a.QuizId))
-            .Select(a => new { a.QuizId, a.Status }).ToListAsync(ct);
+            .Select(a => new { a.QuizId, a.Status, a.DeadlineUtc }).ToListAsync(ct);
+        // An in-progress attempt past its deadline is already over: count it as finalized, as results do. It becomes
+        // Expired on its next read; this list stays read-only.
         var attemptsByQuiz = attemptStates.GroupBy(a => a.QuizId)
-            .ToDictionary(g => g.Key, g => new { Started = g.Count(), Finalized = g.Count(a => a.Status != AttemptStatus.InProgress) });
+            .ToDictionary(g => g.Key, g => new
+            {
+                Started = g.Count(),
+                Finalized = g.Count(a => a.Status != AttemptStatus.InProgress || AttemptTiming.IsPastDeadline(now, a.DeadlineUtc)),
+            });
 
         return quizzes.Select(quiz =>
             {

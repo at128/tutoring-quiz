@@ -47,6 +47,13 @@ Test the rules that would hurt Nour if they broke — one attempt per student, t
 | I15 | Login: valid → cookie is HttpOnly; invalid → 401 `auth.invalid_credentials`; username is case-insensitive |
 | I16 | Submit is idempotent: second submit returns the same result |
 
+### Browser end-to-end (`frontend/e2e`, Playwright) — added 24 Sep at Atta's request
+Run in CI against the real Docker container (`npm run test:e2e`, base URL `E2E_BASE_URL`, default `http://127.0.0.1:18081`):
+- Arabic phone (360 px, `ar-JO`): the device language picks Arabic and right-to-left, the language button switches and is remembered, sign-in, autosave, reload keeps the answer, submit, result; no horizontal scroll.
+- English desktop: the same journey, and submit waiting for a delayed save followed by a cleared answer (the server scores the cleared answer).
+- Arabic teacher: creates and publishes an Arabic quiz on a phone, a student takes it, the teacher sees the result.
+- Arabic editor: a title, question or option made only of tatweel, diacritics or invisible marks is refused with Arabic messages.
+
 ## Manual checks before submission (human)
 - Real phone on the LAN (`http://<laptop-ip>:8080`): log in, take the Arabic quiz, lock the phone for a minute, unlock, answers and time still right, submit.
 - Refresh mid-quiz; open the same quiz in a second tab; try to start again after submitting.

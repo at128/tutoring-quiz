@@ -17,7 +17,7 @@ Owner: Claude Code, with human approval required for contract changes. The front
 |---|---|---|
 | `auth.invalid_credentials` | 401 | wrong username/password |
 | `auth.unauthenticated` | 401 | no/expired session |
-| `auth.forbidden` | 403 | wrong role for the endpoint |
+| `auth.forbidden` | 403 | wrong role for the endpoint, or a change sent from another website's page (CSRF guard, see ARCHITECTURE.md) |
 | `rate_limited` | 429 | too many login attempts |
 | `validation_failed` | 400 | request body invalid (`errors` present) |
 | `not_found` | 404 | missing, not owned, not assigned, or unpublished (student) |
