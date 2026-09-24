@@ -14,4 +14,10 @@ export const formatScore = (value: number) => signed(value, twoDecimals)
 /** 36.1 → "36.1%", −6.25 → "−6.3%". */
 export const formatPercent = (value: number) => `${signed(value, oneDecimal)}%`
 
+/** Rounds like the server (MidpointRounding.AwayFromZero): −6.25 → −6.3. */
+export function roundAwayFromZero(value: number, decimals: number): number {
+  const factor = 10 ** decimals
+  return (Math.sign(value) * Math.round(Math.abs(value) * factor)) / factor
+}
+
 export const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`

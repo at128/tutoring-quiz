@@ -1,4 +1,5 @@
 import type { StudentQuizCard, StudentQuizStatus } from '../../api/types'
+import { roundAwayFromZero } from '../../lib/format'
 
 // Pure view logic shared by the student's quiz list and start screen (wording from the approved prototype).
 
@@ -29,4 +30,4 @@ export const isShortOnTime = (quiz: StudentQuizCard) =>
 
 /** Percentage for display only (the score itself comes from the server). */
 export const displayPercentage = (score: number, maxScore: number) =>
-  maxScore === 0 ? 0 : Math.round((score / maxScore) * 1000) / 10
+  maxScore === 0 ? 0 : roundAwayFromZero((score / maxScore) * 100, 1)

@@ -118,6 +118,12 @@ const paths = {
     </>
   ),
   // Teacher screens
+  eye: (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
   pencil: <path d="M5 19l1-4L16 5l3 3L9 18zM14 7l3 3" />,
   plus: <path d="M12 5v14M5 12h14" />,
   trash: <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 10.5v6M13.5 10.5v6" />,
