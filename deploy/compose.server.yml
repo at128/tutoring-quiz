@@ -1,0 +1,34 @@
+# Live demo override (https://quiz.just-atta.site), used only by deploy/server/tq-deploy:
+#   docker compose -p tutoring-quiz -f docker-compose.yml -f deploy/compose.server.yml ...
+# The server already runs Traefik (Coolify's proxy) on 80/443. The app joins its network and is routed by host
+# name, so this publishes no host port and touches nothing else on the server.
+services:
+  app:
+    image: tutoring-quiz:${TQ_IMAGE_TAG:?the deploy script sets the commit being deployed}
+    ports: !reset []
+    environment:
+      # Traefik terminates TLS: trust its X-Forwarded-Proto/For so the auth cookie is Secure and the login
+      # rate limit sees the real client address. Only Traefik can reach the container (no published port).
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+    networks: [coolify]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: coolify
+      traefik.http.routers.tutoring-quiz.rule: Host(`quiz.just-atta.site`)
+      traefik.http.routers.tutoring-quiz.entrypoints: https
+      traefik.http.routers.tutoring-quiz.tls: "true"
+      traefik.http.routers.tutoring-quiz.tls.certresolver: letsencrypt
+      traefik.http.routers.tutoring-quiz-http.rule: Host(`quiz.just-atta.site`)
+      traefik.http.routers.tutoring-quiz-http.entrypoints: http
+      traefik.http.routers.tutoring-quiz-http.middlewares: tutoring-quiz-to-https
+      traefik.http.middlewares.tutoring-quiz-to-https.redirectscheme.scheme: https
+      traefik.http.services.tutoring-quiz.loadbalancer.server.port: "8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  coolify:
+    external: true
