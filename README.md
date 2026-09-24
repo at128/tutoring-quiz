@@ -43,6 +43,25 @@ Each student can take each quiz **once**, so several untouched accounts are rese
 
 Usernames aren't case-sensitive. There is no admin role (see `DECISIONS.md`). The live demo is shared, so someone may already have used an account; `./run.sh --reset` locally always gives fresh ones.
 
+### Which account for which scenario
+Accounts `…-01` to `…-05` are untouched. The seed gives finished attempts (most submitted, a few where time ran out) to `10b-06` … `10b-15` (Arabic grammar and English Unit 4), `10b-16` … `10b-18` and `11a-06` … `11a-18` (English Unit 4).
+
+| Scenario | Sign in as | Then |
+|---|---|---|
+| Take a quiz with 25 % negative marking (Arabic) | `10a-01` … `10a-05` or `10b-01` … `10b-05` | Arabic grammar → start → answer → submit |
+| Take a quiz without negative marking | `10a-01` … `10a-05` or `11a-01` … `11a-05` | Algebra |
+| Refresh, a second tab, a locked phone mid-quiz | an untouched student | the attempt resumes with every saved answer |
+| An upcoming quiz (can't start yet) | `10a-…` or `10b-…` | Physics (opens in 2 days) |
+| A quiz you missed | `10b-01` … `10b-05` or `11a-01` … `11a-05` | English Unit 4 (closed) |
+| A result you already have | `10b-06` … `10b-15` | the completed cards → View result |
+| Results while a quiz is still open, and why it can't be edited | `teacher.reem` | Arabic grammar → Results; the quiz shows as locked |
+| A student's answers, question by question | `teacher.reem` or `teacher.lina` | Results → View answers |
+| Hide scores, then look as a student | `teacher.reem` → Arabic grammar → Results → Hide scores; then `10b-06` | the result says the score is hidden; Show scores brings the same score back |
+| Correct a closed quiz and watch the results recalculate | `teacher.lina` | English Unit 4 → change a correct option or points → Save → Results (the students' answers stay; scores change) |
+| A fixed mark per wrong answer | `teacher.khaled` → Physics → set it to open now → Save (no attempts yet, so it's editable); then `10a-01` … `10a-05` | take Physics; the result explains the 0.5 deduction |
+| Write and publish a new quiz | `teacher.sami` or `teacher.khaled` | New quiz → Publish; a student in that class takes it |
+| Arabic or English interface | any account | follows the phone's language; the «العربية / English» button switches |
+
 ## What it does
 
 **Students**
