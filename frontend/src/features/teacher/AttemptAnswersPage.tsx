@@ -187,11 +187,12 @@ function QuestionSheet({ number, question }: { number: number; question: Teacher
   )
 }
 
+/** Label, then its value right after it (on the right in Arabic), rather than pushed to the far edge. */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-t border-rule-soft py-2 first:border-t-0">
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-4 border-t border-rule-soft py-2 first:border-t-0 md:grid-cols-[10rem_minmax(0,1fr)]">
       <dt className="text-small text-muted">{label}</dt>
-      <dd className="text-end text-[15px]">{children}</dd>
+      <dd className="text-start text-[15px]">{children}</dd>
     </div>
   )
 }
