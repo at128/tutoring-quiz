@@ -18,7 +18,7 @@ Test the rules that would hurt Nour if they broke — one attempt per student, t
 | D1 | No penalty: only correct answers count; wrong and unanswered give 0 |
 | D2 | With penalty: the worked example in DOMAIN.md (4,2,2,1 / 25 %) gives 3.25 |
 | D3 | Unanswered is 0 even with penalty (missing row and null option both) |
-| D4 | Total can go negative and is not clamped (the −4.5 example) |
+| D4 | The total never goes below 0: the −4.5 example scores 0 (changed on 24 Sep; it was unclamped) |
 | D5 | Rounding to 2 decimals, away from zero (e.g. 33 % of 1 point) |
 | D6 | Deadline = start + duration when the close time is later |
 | D7 | Deadline = close time when starting near the close |

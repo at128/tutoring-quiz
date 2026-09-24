@@ -43,14 +43,14 @@ public sealed class QuizAttemptTests
 
         Assert.Equal(AttemptStatus.Expired, attempt.Status);
         Assert.Equal(attempt.DeadlineUtc, attempt.FinalizedAtUtc);
-        Assert.Equal(-0.5m, attempt.Score);
+        Assert.Equal(0m, attempt.Score); // one wrong answer (−0.5) and nothing earned: stops at 0
 
         var version = attempt.Version;
         Assert.False(attempt.FinalizeIfExpired(quiz, attempt.DeadlineUtc.AddHours(3)));
         Assert.False(attempt.Submit(quiz, attempt.DeadlineUtc.AddHours(3)));
         Assert.Equal(AttemptStatus.Expired, attempt.Status);
         Assert.Equal(attempt.DeadlineUtc, attempt.FinalizedAtUtc);
-        Assert.Equal(-0.5m, attempt.Score);
+        Assert.Equal(0m, attempt.Score); // one wrong answer (−0.5) and nothing earned: stops at 0
         Assert.Equal(version, attempt.Version);
     }
 

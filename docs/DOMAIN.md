@@ -86,7 +86,7 @@ Per question (`p` = question points, `k` = WrongAnswerPenaltyPercent):
 | wrong | `−p × k / 100` |
 | unanswered (no row or null option) | `0` |
 
-`Score = Σ` of the above, rounded to **2 decimals** (`MidpointRounding.AwayFromZero`). **Not clamped**: the total can be negative when negative marking is on. `MaxScore = Σ p`. `Percentage = Score / MaxScore × 100`, rounded to 1 decimal (can be negative).
+`Score = Σ` of the above, rounded to **2 decimals** (`MidpointRounding.AwayFromZero`). **Never below 0** (changed on 24 Sep; it used to be unclamped): `Score = max(0, rounded Σ)`. `MaxScore = Σ p`. `Percentage = Score / MaxScore × 100`, rounded to 1 decimal.
 
 Worked examples (penalty 25 %, questions worth 4, 2, 2, 1 → max 9):
 - correct, wrong, unanswered, wrong → `4 − 0.5 + 0 − 0.25 = 3.25` → 36.1 %

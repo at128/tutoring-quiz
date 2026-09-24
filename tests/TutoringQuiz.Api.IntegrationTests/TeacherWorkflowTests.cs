@@ -390,7 +390,7 @@ public sealed class TeacherWorkflowTests(TestAppFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task NegativeScoresFlowThroughTheResultAndTeacherSummaryWithoutClamping()
+    public async Task AllWrongWithNegativeMarking_ScoresZero_NeverBelow_InTheResultAndTeacherSummary()
     {
         var data = await TestData.CreateAsync(factory, penaltyPercent: 50);
         using var teacher = await TestData.LoginAsync(factory, data.Teacher);
@@ -407,14 +407,15 @@ public sealed class TeacherWorkflowTests(TestAppFactory factory) : IClassFixture
 
         using var submitted = await student.PostAsync($"/api/student/attempts/{id}/submit", null);
         var result = await JsonAsync(submitted);
-        Assert.Equal(-4.5m, result.GetProperty("score").GetDecimal());
-        Assert.Equal(-50m, result.GetProperty("percentage").GetDecimal());
+        Assert.Equal(0m, result.GetProperty("score").GetDecimal()); // −4.5 before the floor
+        Assert.Equal(0m, result.GetProperty("percentage").GetDecimal());
+        Assert.Equal(4, result.GetProperty("wrongCount").GetInt32());
         using var teacherResults = await teacher.GetAsync($"/api/teacher/quizzes/{data.Quiz.Id}/results");
         var summary = (await JsonAsync(teacherResults)).GetProperty("summary");
-        Assert.Equal(-4.5m, summary.GetProperty("averageScore").GetDecimal());
-        Assert.Equal(-4.5m, summary.GetProperty("highestScore").GetDecimal());
-        Assert.Equal(-4.5m, summary.GetProperty("lowestScore").GetDecimal());
-        Assert.Equal(-50m, summary.GetProperty("averagePercentage").GetDecimal());
+        Assert.Equal(0m, summary.GetProperty("averageScore").GetDecimal());
+        Assert.Equal(0m, summary.GetProperty("highestScore").GetDecimal());
+        Assert.Equal(0m, summary.GetProperty("lowestScore").GetDecimal());
+        Assert.Equal(0m, summary.GetProperty("averagePercentage").GetDecimal());
     }
 
     [Fact]
@@ -569,10 +570,10 @@ public sealed class TeacherWorkflowTests(TestAppFactory factory) : IClassFixture
         var summary = (await JsonAsync(results)).GetProperty("summary");
         Assert.Equal(3, summary.GetProperty("assignedCount").GetInt32());
         Assert.Equal(2, summary.GetProperty("finalizedCount").GetInt32());
-        Assert.Equal(1.5m, summary.GetProperty("averageScore").GetDecimal());
+        Assert.Equal(2m, summary.GetProperty("averageScore").GetDecimal()); // 4 and 0 (−1 stops at 0)
         Assert.Equal(4m, summary.GetProperty("highestScore").GetDecimal());
-        Assert.Equal(-1m, summary.GetProperty("lowestScore").GetDecimal());
-        Assert.Equal(37.5m, summary.GetProperty("averagePercentage").GetDecimal());
+        Assert.Equal(0m, summary.GetProperty("lowestScore").GetDecimal());
+        Assert.Equal(50m, summary.GetProperty("averagePercentage").GetDecimal());
     }
 
     [Fact]

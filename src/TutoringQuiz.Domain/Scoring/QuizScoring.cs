@@ -12,7 +12,8 @@ public sealed record ScoreBreakdown(decimal Score, int MaxScore, int CorrectCoun
 
 /// <summary>
 /// The only place scores are computed. Per question: correct = +p, wrong = −p × k / 100, unanswered = 0.
-/// The total is rounded to 2 decimals (away from zero) and is not clamped, so it can be negative.
+/// The total is rounded to 2 decimals (away from zero) and never goes below 0: wrong answers can take back what
+/// correct ones earned, but no more (Atta, 24 Sep).
 /// </summary>
 public static class QuizScoring
 {
@@ -44,7 +45,7 @@ public static class QuizScoring
         }
 
         return new ScoreBreakdown(
-            Math.Round(total, 2, MidpointRounding.AwayFromZero), maxScore, correct, wrong, unanswered);
+            Math.Max(0m, Math.Round(total, 2, MidpointRounding.AwayFromZero)), maxScore, correct, wrong, unanswered);
     }
 
     public static ScoreBreakdown Calculate(
@@ -56,7 +57,7 @@ public static class QuizScoring
             answers.ToDictionary(a => a.QuestionId, a => a.SelectedOptionId),
             wrongAnswerPenaltyPercent);
 
-    /// <summary>Score / max × 100, rounded to 1 decimal (can be negative).</summary>
+    /// <summary>Score / max × 100, rounded to 1 decimal.</summary>
     public static decimal Percentage(decimal score, int maxScore) =>
         maxScore == 0 ? 0 : Math.Round(score / maxScore * 100m, 1, MidpointRounding.AwayFromZero);
 }
