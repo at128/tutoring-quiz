@@ -1,11 +1,29 @@
 # Workflow — one primary implementer, one independent reviewer, one human
 
+## What actually happened (changes Atta made to this plan during the work)
+The plan below is kept as it was written. This is how the work actually ran; `AI_USAGE.md` and `docs/ai-log/` have the details.
+
+1. **The implementer changed hands twice.**
+   - Claude Code did M0 and B1, and started F1.
+   - When it hit its usage limit (Wed evening), Atta handed implementation to **Codex**. Codex finished F1 and implemented **B2 and B3** (student attempts, teacher authoring and results, HTTP integration tests).
+   - Claude Code took over again for **F2 and F3** (the student and teacher UI, built from the approved Claude Design prototype).
+2. **Pull requests instead of "agents never push".** From Thu 00:00, each milestone lands as one GitHub pull request. Claude Code pushes the branch and merges it with a merge commit **only after all three CI jobs (backend, frontend, Docker build) are green**. The earlier local history was replayed as PRs #1–#5 with the same commits. Nobody force-pushes, rebases or rewrites history.
+3. **Reviews.**
+   - The formal C1–C3 checkpoint reports weren't produced as separate files.
+   - Codex's **backend/frontend handler audit** (`docs/reviews/backend-frontend-handler-audit-codex-review.md`) covered all handlers and the frontend logic up to F3. Its findings were triaged and fixed with tests (HF-01, HF-02 and follow-ups).
+   - M4 (the adversarial whole-repo review) runs as planned.
+4. **Two agents in one working tree (Thu morning).**
+   - Codex audited while Claude Code built F3 in the same folder. They coordinated through `AGENT_CHANNEL.md`, a local file that is never committed and is excluded in `.git/info/exclude`.
+   - That file holds append-only messages, a file-ownership table and a git lock. It also requires staging by explicit path only, and bans `add -A`, `stash`, `reset` and `clean`, so neither agent could commit or destroy the other's uncommitted work.
+   - Atta settled the scope questions: browser E2E tests stay out, and the login limit moves to per IP + username.
+5. **Live demo.** Atta asked for optional hosting at https://quiz.just-atta.site. The server **pulls** green commits of `main` itself (`deploy/README.md`), so no SSH key or server address is ever stored on GitHub (Atta's rule).
+
 ## Why this setup
 1. **Single implementation context.** Claude Code owns both backend and frontend, so there is no branch/worktree coordination cost and no contract drift between two simultaneous implementers.
 2. **Independent review.** Codex enters with fresh context at checkpoints and M4, read-only, to find defects the implementing model may miss.
 3. **Human judgment remains explicit.** Atta approves plans, triages every review finding, pushes, and finalizes the deliverables.
 
-Agents never push or merge.
+Agents never push or merge. *(Superseded on Thu 00:00: see "What actually happened", point 2.)*
 
 ## Working layout
 | Repository | Branch | Tool | Role |
