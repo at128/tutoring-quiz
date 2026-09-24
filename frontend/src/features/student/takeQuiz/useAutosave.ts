@@ -50,7 +50,7 @@ export function useAutosave({ attemptId, answers, dispatch, active, onAttemptClo
           return
         }
         if (isApiError(error, 'answer.invalid_option', 'validation_failed')) {
-          dispatch({ type: 'rejected', questionId })
+          dispatch({ type: 'rejected', questionId, sent: optionId })
           return
         }
         if (isApiError(error) && error.status === 401) return // the auth layer sends the student to sign in
@@ -97,5 +97,8 @@ export function useAutosave({ attemptId, answers, dispatch, active, onAttemptClo
     }
   }, [retryNow, clearRetries])
 
-  return { pendingCount: pendingQuestionIds(answers).length, retryNow }
+  // A choice can return to its last confirmed value while an older write is still in flight.
+  // Submit must wait for that write to finish (and, if needed, for a compensating write).
+  const pendingCount = new Set([...pendingQuestionIds(answers), ...inFlight.current]).size
+  return { pendingCount, retryNow }
 }

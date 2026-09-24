@@ -16,6 +16,7 @@ import { ErrorState, NotAvailableState, Skeleton } from '../../components/States
 import { formatPercent, formatScore } from '../../lib/format'
 import { formatDayTime, formatRelative, formatShortDate, formatTime, remainingMs, serverOffset } from '../../lib/time'
 import { useServerNow } from '../../lib/useServerNow'
+import { availableTimeText, liveQuiz, shortTimeWarning } from './liveQuiz'
 import { Timer } from './takeQuiz/QuizHeader'
 import { displayPercentage, isShortOnTime } from './studentQuizCopy'
 
@@ -27,9 +28,10 @@ export function StartQuizPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const list = useQuery({ queryKey: studentKeys.quizzes(), queryFn: ({ signal }) => listStudentQuizzes(signal) })
-  const quiz = list.data?.quizzes.find((item) => item.id === quizId)
+  const sourceQuiz = list.data?.quizzes.find((item) => item.id === quizId)
   const offset = list.data ? serverOffset(list.data.serverNow, list.dataUpdatedAt) : 0
   const nowMs = useServerNow(offset, 1000)
+  const quiz = sourceQuiz ? liveQuiz(sourceQuiz, nowMs) : null
 
   const start = useMutation({
     mutationFn: () => startAttempt(quizId),
@@ -98,7 +100,7 @@ function StateBox({ quiz, nowMs, offsetMs }: { quiz: StudentQuizCard; nowMs: num
             <div className="flex items-center gap-2.5 text-amber-ink">
               <Icon name="alert" strokeWidth={2} />
               <span className="text-card font-bold">
-                You’ll have only <Num>{quiz.effectiveMinutesIfStartedNow}</Num> minutes
+                You’ll have <Num>{shortTimeWarning(quiz.effectiveMinutesIfStartedNow)}</Num>
               </span>
             </div>
             <p className="text-[15px] leading-[1.55] text-ink">
@@ -296,7 +298,7 @@ function FooterAction({ quiz, nowMs, starting, onStart }: { quiz: StudentQuizCar
     case 'Available':
       return (
         <Button size="lg" className="w-full" loading={starting} onClick={onStart}>
-          {isShortOnTime(quiz) ? `Start quiz — ${quiz.effectiveMinutesIfStartedNow} minutes` : 'Start quiz'}
+          {isShortOnTime(quiz) ? `Start quiz — ${availableTimeText(quiz.effectiveMinutesIfStartedNow)}` : 'Start quiz'}
         </Button>
       )
     case 'InProgress':
